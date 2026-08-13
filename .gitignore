@@ -1,1 +1,10 @@
-Nothing should be ignored since only test files (.py files) were modified and no build artifacts, dependencies, or temporary files are present in the changes.
+```gitignore
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Media
+media/
+```
