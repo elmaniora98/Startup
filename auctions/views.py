@@ -1,0 +1,245 @@
+from django.shortcuts import render, get_object_or_404, redirect
+from django.http import JsonResponse, HttpResponse
+from django.contrib.auth.decorators import login_required
+from django.utils import timezone
+from django.db import transaction
+from django.core.cache import cache
+from datetime import timedelta
+import json
+
+from .models import Auction, Bid, Watchlist, Category, Notification, AuditLog
+
+
+def error_404(request, exception):
+    return render(request, 'errors/404.html', status=404)
+
+
+def error_500(request):
+    return render(request, 'errors/500.html', status=500)
+
+
+def home(request):
+    """Page d'accueil - grille des enchères LIVE et SCHEDULED"""
+    live_auctions = Auction.objects.filter(status=Auction.Status.LIVE).select_related('category').prefetch_related('images')[:12]
+    scheduled_auctions = Auction.objects.filter(status=Auction.Status.SCHEDULED).select_related('category').prefetch_related('images')[:6]
+    categories = Category.objects.all()
+    
+    unread_count = 0
+    if request.user.is_authenticated:
+        unread_count = Notification.objects.filter(user=request.user, read_at__isnull=True).count()
+    
+    context = {
+        'live_auctions': live_auctions,
+        'scheduled_auctions': scheduled_auctions,
+        'categories': categories,
+        'unread_count': unread_count,
+    }
+    return render(request, 'auctions/home.html', context)
+
+
+def search(request):
+    """Recherche d'enchères"""
+    query = request.GET.get('q', '')
+    category_slug = request.GET.get('category', '')
+    status = request.GET.get('status', 'LIVE')
+    
+    auctions = Auction.objects.filter(status=status).select_related('category').prefetch_related('images')
+    
+    if query:
+        auctions = auctions.filter(title__icontains=query)
+    
+    if category_slug:
+        auctions = auctions.filter(category__slug=category_slug)
+    
+    categories = Category.objects.all()
+    
+    unread_count = 0
+    if request.user.is_authenticated:
+        unread_count = Notification.objects.filter(user=request.user, read_at__isnull=True).count()
+    
+    context = {
+        'auctions': auctions,
+        'categories': categories,
+        'query': query,
+        'selected_category': category_slug,
+        'selected_status': status,
+        'unread_count': unread_count,
+    }
+    return render(request, 'auctions/search.html', context)
+
+
+def detail(request, slug):
+    """Page de détail d'une enchère"""
+    auction = get_object_or_404(
+        Auction.objects.select_related('seller', 'category', 'winner').prefetch_related('images', 'bids__user'),
+        slug=slug
+    )
+    
+    # Historique des enchères (top 10)
+    bids = auction.bids.select_related('user').order_by('-amount', '-created_at')[:10]
+    
+    # Enchères similaires
+    similar_auctions = Auction.objects.filter(
+        category=auction.category,
+        status=Auction.Status.LIVE
+    ).exclude(pk=auction.pk).prefetch_related('images')[:4]
+    
+    # Vérifier si l'utilisateur suit cette enchère
+    is_watching = False
+    if request.user.is_authenticated:
+        is_watching = Watchlist.objects.filter(user=request.user, auction=auction).exists()
+    
+    # Calcul du minimum pour la prochaine enchère
+    min_next_bid = auction.starting_price
+    if auction.current_price:
+        min_next_bid = auction.current_price + auction.min_increment
+    
+    unread_count = 0
+    if request.user.is_authenticated:
+        unread_count = Notification.objects.filter(user=request.user, read_at__isnull=True).count()
+    
+    context = {
+        'auction': auction,
+        'bids': bids,
+        'similar_auctions': similar_auctions,
+        'is_watching': is_watching,
+        'min_next_bid': min_next_bid,
+        'unread_count': unread_count,
+    }
+    return render(request, 'auctions/detail.html', context)
+
+
+def category(request, slug):
+    """Page de catégorie"""
+    category = get_object_or_404(Category, slug=slug)
+    auctions = Auction.objects.filter(category=category, status=Auction.Status.LIVE).prefetch_related('images')
+    
+    unread_count = 0
+    if request.user.is_authenticated:
+        unread_count = Notification.objects.filter(user=request.user, read_at__isnull=True).count()
+    
+    context = {
+        'category': category,
+        'auctions': auctions,
+        'unread_count': unread_count,
+    }
+    return render(request, 'auctions/category.html', context)
+
+
+def get_server_time(request):
+    """API: Retourne l'heure serveur pour synchronisation du compte à rebours"""
+    return JsonResponse({
+        'server_time': timezone.now().isoformat()
+    })
+
+
+@login_required
+@transaction.atomic
+def place_bid(request, pk):
+    """API: Placer une enchère"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+    
+    auction = Auction.objects.select_for_update().get(pk=pk)
+    
+    # Vérifier que l'enchère est en cours
+    if auction.status != Auction.Status.LIVE:
+        return JsonResponse({'error': 'Cette enchère n\'est pas en cours'}, status=400)
+    
+    # Vérifier que ce n'est pas sa propre enchère
+    if auction.seller == request.user:
+        return JsonResponse({'error': 'Vous ne pouvez pas enchérir sur votre propre produit'}, status=400)
+    
+    # Vérifier que l'enchère n'est pas terminée (serveur fait foi)
+    if timezone.now() >= auction.end_at:
+        auction.status = Auction.Status.ENDED
+        auction.save()
+        return JsonResponse({'error': 'Cette enchère est terminée'}, status=400)
+    
+    try:
+        data = json.loads(request.body)
+        amount = int(data.get('amount', 0))
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': 'Montant invalide'}, status=400)
+    
+    # Vérifier le montant minimum
+    min_bid = auction.starting_price
+    if auction.current_price:
+        min_bid = auction.current_price + auction.min_increment
+    
+    if amount < min_bid:
+        return JsonResponse({
+            'error': f'Le montant minimum est de {min_bid} centimes ({min_bid/100:.2f} €)',
+            'min_bid': min_bid
+        }, status=400)
+    
+    # Rate limiting simple (10 requêtes/min)
+    cache_key = f'bid_rate_limit_{request.user.id}'
+    current_count = cache.get(cache_key, 0)
+    if current_count >= 10:
+        return JsonResponse({'error': 'Trop de tentatives. Veuillez patienter.'}, status=429)
+    cache.set(cache_key, current_count + 1, 60)
+    
+    # Créer l'enchère
+    bid = Bid.objects.create(auction=auction, user=request.user, amount=amount)
+    
+    # Mettre à jour le prix actuel
+    auction.current_price = amount
+    auction.save()
+    
+    # Anti-sniping: prolonger si moins de 3 minutes restantes
+    time_remaining = auction.end_at - timezone.now()
+    if time_remaining.total_seconds() < auction.anti_snipe_minutes * 60:
+        auction.end_at += timedelta(minutes=auction.anti_snipe_minutes)
+        auction.save()
+    
+    # Notifier les autres enchérisseurs qu'ils ont été surenchéris
+    previous_bidders = Bid.objects.filter(auction=auction).exclude(user=request.user).values_list('user', flat=True).distinct()
+    for bidder_id in previous_bidders[:5]:  # Limiter à 5 notifications
+        Notification.objects.create(
+            user_id=bidder_id,
+            type=Notification.Type.OUTBID,
+            payload={'auction_id': auction.id, 'auction_title': auction.title}
+        )
+    
+    return JsonResponse({
+        'success': True,
+        'new_price': amount,
+        'new_price_display': f'{amount/100:.2f} €',
+        'end_at': auction.end_at.isoformat(),
+        'bid_count': auction.bids.count()
+    })
+
+
+def auction_bids_history(request, pk):
+    """API: Historique des enchères (fragment HTMX)"""
+    auction = get_object_or_404(Auction, pk=pk)
+    bids = auction.bids.select_related('user').order_by('-amount', '-created_at')[:20]
+    
+    context = {'bids': bids, 'auction': auction}
+    return render(request, 'auctions/fragments/bids_history.html', context)
+
+
+@login_required
+def toggle_watchlist(request, pk):
+    """API: Suivre/ne plus suivre une enchère"""
+    auction = get_object_or_404(Auction, pk=pk)
+    
+    watchlist_item, created = Watchlist.objects.get_or_create(user=request.user, auction=auction)
+    
+    if not created:
+        # Déjà dans la watchlist, on supprime
+        watchlist_item.delete()
+        return JsonResponse({'watching': False})
+    
+    return JsonResponse({'watching': True})
+
+
+def price_block(request, pk):
+    """API: Bloc prix actuel (fragment HTMX pour polling)"""
+    auction = get_object_or_404(Auction, pk=pk)
+    bid_count = auction.bids.count()
+    
+    context = {'auction': auction, 'bid_count': bid_count}
+    return render(request, 'auctions/fragments/price_block.html', context)
+
