@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block title %}{% block admin_title %}Admin{% endblock %} | Enchère+ Admin{% endblock %}
+
+{% block body_class %}bg-gray-100{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-gray-900 text-white flex-shrink-0">
+        <div class="p-6">
+            <a href="{% url 'admin_dashboard' %}" class="text-xl font-bold">
+                Enchère<span class="text-purple-500">+</span> Admin
+            </a>
+        </div>
+        
+        <nav class="mt-4">
+            <a href="{% url 'admin_dashboard' %}" 
+               class="block px-6 py-3 hover:bg-gray-800 {% if request.resolver_match.url_name == 'admin_dashboard' %}bg-gray-800 border-l-4 border-purple-500{% endif %}">
+                Vue d'ensemble
+            </a>
+            
+            <a href="{% url 'validation_queue' %}" 
+               class="block px-6 py-3 hover:bg-gray-800 {% if 'validation' in request.resolver_match.url_name %}bg-gray-800 border-l-4 border-purple-500{% endif %} relative">
+                Validation
+                {% if pending_count > 0 %}
+                <span class="absolute right-6 top-3 bg-red-500 text-white text-xs rounded-full px-2 py-0.5">
+                    {{ pending_count }}
+                </span>
+                {% endif %}
+            </a>
+            
+            <a href="{% url 'audit_log' %}" 
+               class="block px-6 py-3 hover:bg-gray-800 {% if request.resolver_match.url_name == 'audit_log' %}bg-gray-800 border-l-4 border-purple-500{% endif %}">
+                Journal d'audit
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-8 overflow-y-auto">
+        {% if messages %}
+        <div class="mb-6">
+            {% for message in messages %}
+            <div class="p-4 rounded-lg mb-2 {% if message.tags == 'success' %}bg-green-100 text-green-800{% elif message.tags == 'error' %}bg-red-100 text-red-800{% else %}bg-blue-100 text-blue-800{% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% block admin_content %}{% endblock %}
+    </main>
+</div>
+{% endblock %}

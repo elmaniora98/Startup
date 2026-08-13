@@ -1,0 +1,198 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Enchère+ — Vente aux enchères en ligne{% endblock %}</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f5f3ff',
+                            100: '#ede9fe',
+                            200: '#ddd6fe',
+                            300: '#c4b5fd',
+                            400: '#a78bfa',
+                            500: '#8b5cf6',
+                            600: '#7c3aed',
+                            700: '#6d28d9',  // Couleur primaire
+                            800: '#5b21b6',
+                            900: '#4c1d95',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="{% static 'favicon.svg' %}">
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+    <!-- Navbar -->
+    <nav class="bg-white shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <!-- Logo -->
+                <div class="flex items-center">
+                    <a href="{% url 'auctions:home' %}" class="flex-shrink-0 flex items-center">
+                        <span class="text-2xl font-bold text-gray-800">Enchère</span>
+                        <span class="text-2xl font-bold text-brand-700">+</span>
+                    </a>
+                    
+                    <!-- Barre de recherche (desktop) -->
+                    <div class="hidden md:flex ml-10">
+                        <form action="{% url 'auctions:search' %}" method="GET" class="relative">
+                            <input 
+                                type="text" 
+                                name="q" 
+                                placeholder="Rechercher une enchère..."
+                                class="w-64 pl-4 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                            >
+                            <button type="submit" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                </svg>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- Menu droite -->
+                <div class="flex items-center space-x-4">
+                    {% if user.is_authenticated %}
+                        <!-- Notifications -->
+                        <a href="{% url 'accounts:notifications' %}" class="relative p-2 text-gray-600 hover:text-brand-700 transition-colors">
+                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                            </svg>
+                            {% if unread_count > 0 %}
+                                <span class="absolute top-1 right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
+                                    {{ unread_count }}
+                                </span>
+                            {% endif %}
+                        </a>
+                        
+                        <!-- Menu utilisateur -->
+                        <div class="relative group">
+                            <button class="flex items-center space-x-2 text-gray-700 hover:text-brand-700 transition-colors">
+                                {% if user.avatar %}
+                                    <img src="{{ user.avatar.url }}" alt="Avatar" class="h-8 w-8 rounded-full object-cover">
+                                {% else %}
+                                    <div class="h-8 w-8 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-semibold">
+                                        {{ user.username|first|upper }}
+                                    </div>
+                                {% endif %}
+                                <span class="hidden md:block">{{ user.username }}</span>
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </button>
+                            
+                            <!-- Dropdown -->
+                            <div class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 hidden group-hover:block border border-gray-100">
+                                <a href="{% url 'accounts:dashboard' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-brand-50 hover:text-brand-700">
+                                    Mon tableau de bord
+                                </a>
+                                <a href="{% url 'accounts:my_products' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-brand-50 hover:text-brand-700">
+                                    Mes produits
+                                </a>
+                                <a href="{% url 'accounts:watchlist' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-brand-50 hover:text-brand-700">
+                                    Mes suivis
+                                </a>
+                                {% if user.is_admin %}
+                                    <hr class="my-2 border-gray-200">
+                                    <a href="{% url 'admin:dashboard' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-brand-50 hover:text-brand-700">
+                                        Administration
+                                    </a>
+                                {% endif %}
+                                <hr class="my-2 border-gray-200">
+                                <a href="{% url 'accounts:logout' %}" class="block px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+                                    Déconnexion
+                                </a>
+                            </div>
+                        </div>
+                    {% else %}
+                        <a href="{% url 'accounts:login' %}" class="text-gray-700 hover:text-brand-700 transition-colors">
+                            Connexion
+                        </a>
+                        <a href="{% url 'accounts:register' %}" class="bg-brand-700 hover:bg-brand-800 text-white px-4 py-2 rounded-lg transition-colors">
+                            Inscription
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Messages -->
+    {% if messages %}
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+            {% for message in messages %}
+                <div class="p-4 rounded-lg mb-4 {% if message.tags == 'error' %}bg-red-100 text-red-800 border border-red-200{% elif message.tags == 'success' %}bg-green-100 text-green-800 border border-green-200{% elif message.tags == 'warning' %}bg-yellow-100 text-yellow-800 border border-yellow-200{% else %}bg-blue-100 text-blue-800 border border-blue-200{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Contenu principal -->
+    <main class="flex-grow">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white mt-auto">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <!-- Logo et description -->
+                <div class="col-span-1 md:col-span-2">
+                    <div class="flex items-center mb-4">
+                        <span class="text-2xl font-bold text-white">Enchère</span>
+                        <span class="text-2xl font-bold text-brand-500">+</span>
+                    </div>
+                    <p class="text-gray-400 mb-4">
+                        La plateforme de vente aux enchères en ligne sécurisée et transparente.
+                        Enchérissez sur des produits uniques ou vendez les vôtres en toute confiance.
+                    </p>
+                </div>
+                
+                <!-- Liens utiles -->
+                <div>
+                    <h3 class="text-lg font-semibold mb-4">Liens utiles</h3>
+                    <ul class="space-y-2">
+                        <li><a href="{% url 'auctions:home' %}" class="text-gray-400 hover:text-brand-500 transition-colors">Accueil</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-brand-500 transition-colors">Comment ça marche</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-brand-500 transition-colors">FAQ</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-brand-500 transition-colors">Contact</a></li>
+                    </ul>
+                </div>
+                
+                <!-- Légal -->
+                <div>
+                    <h3 class="text-lg font-semibold mb-4">Légal</h3>
+                    <ul class="space-y-2">
+                        <li><a href="#" class="text-gray-400 hover:text-brand-500 transition-colors">CGU</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-brand-500 transition-colors">Confidentialité</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-brand-500 transition-colors">Mentions légales</a></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
+                <p>&copy; {% now "Y" %} Enchère+. Tous droits réservés.</p>
+            </div>
+        </div>
+    </footer>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

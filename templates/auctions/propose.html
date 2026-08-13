@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+
+{% block title %}Proposer un produit | Enchère+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="bg-white rounded-lg shadow p-6">
+        <h1 class="text-2xl font-bold text-gray-900 mb-2">
+            {% if editing %}Modifier l'enchère{% else %}Proposer un produit à la vente{% endif %}
+        </h1>
+        
+        <p class="text-sm text-gray-600 mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-3">
+            ℹ️ Votre produit sera examiné par un administrateur d'Enchère+ avant publication.
+        </p>
+
+        <form method="post" enctype="multipart/form-data" class="space-y-6">
+            {% csrf_token %}
+            
+            <!-- Titre -->
+            <div>
+                <label for="{{ form.title.id_for_label }}" class="block text-sm font-medium text-gray-700">Titre</label>
+                {{ form.title }}
+                {% if form.title.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.title.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Catégorie -->
+            <div>
+                <label for="{{ form.category.id_for_label }}" class="block text-sm font-medium text-gray-700">Catégorie</label>
+                {{ form.category }}
+                {% if form.category.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.category.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Description -->
+            <div>
+                <label for="{{ form.description.id_for_label }}" class="block text-sm font-medium text-gray-700">Description</label>
+                {{ form.description }}
+                {% if form.description.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.description.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Prix de départ et Incrément -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="{{ form.starting_price_euros.id_for_label }}" class="block text-sm font-medium text-gray-700">Prix de départ (€)</label>
+                    {{ form.starting_price_euros }}
+                    {% if form.starting_price_euros.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.starting_price_euros.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label for="{{ form.min_increment_euros.id_for_label }}" class="block text-sm font-medium text-gray-700">Incrément minimum (€)</label>
+                    {{ form.min_increment_euros }}
+                    {% if form.min_increment_euros.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.min_increment_euros.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Prix de réserve -->
+            <div>
+                <label for="{{ form.reserve_price_euros.id_for_label }}" class="block text-sm font-medium text-gray-700">Prix de réserve (optionnel, €)</label>
+                {{ form.reserve_price_euros }}
+                {% if form.reserve_price_euros.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.reserve_price_euros.errors.0 }}</p>
+                {% endif %}
+                <p class="mt-1 text-xs text-gray-500">Laissez vide si vous n'avez pas de prix minimum.</p>
+            </div>
+
+            <!-- Dates -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="{{ form.start_at.id_for_label }}" class="block text-sm font-medium text-gray-700">Date et heure de début</label>
+                    {{ form.start_at }}
+                    {% if form.start_at.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.start_at.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label for="{{ form.end_at.id_for_label }}" class="block text-sm font-medium text-gray-700">Date et heure de fin</label>
+                    {{ form.end_at }}
+                    {% if form.end_at.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.end_at.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Images -->
+            <div>
+                <label for="{{ form.images.id_for_label }}" class="block text-sm font-medium text-gray-700">Images du produit</label>
+                {{ form.images }}
+                {% if form.images.errors %}
+                    <p class="mt-1 text-sm text-red-600">{{ form.images.errors.0 }}</p>
+                {% endif %}
+                <p class="mt-1 text-xs text-gray-500">Minimum 1 image, maximum 5 images. Formats acceptés : JPG, PNG, WebP. Taille max : 5 Mo par image.</p>
+            </div>
+
+            <!-- Boutons -->
+            <div class="flex items-center justify-end space-x-4 pt-6 border-t">
+                <a href="{% url 'accounts:my_products' %}" class="text-gray-600 hover:text-gray-800 px-4 py-2">Annuler</a>
+                <button type="submit" class="bg-brand-700 hover:bg-brand-800 text-white px-6 py-2 rounded-lg transition-colors">
+                    {% if editing %}Enregistrer les modifications{% else %}Soumettre pour validation{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,314 @@
+{% extends 'base.html' %}
+{% load auction_filters %}
+
+{% block title %}{{ auction.title }} | Enchère+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <!-- Fil d'ariane -->
+    <nav class="mb-6 text-sm text-gray-600">
+        <a href="{% url 'auctions:home' %}" class="hover:text-purple-600">Accueil</a>
+        <span class="mx-2">/</span>
+        <a href="{% url 'auctions:category' auction.category.slug %}" class="hover:text-purple-600">{{ auction.category.name }}</a>
+        <span class="mx-2">/</span>
+        <span class="text-gray-900 font-medium">{{ auction.title|truncatechars:30 }}</span>
+    </nav>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- Galerie d'images -->
+        <div>
+            {% if auction.images.all %}
+                <div class="relative">
+                    <img id="main-image" 
+                         src="{{ auction.images.first.image.url }}" 
+                         alt="{{ auction.title }}"
+                         class="w-full h-96 object-cover rounded-lg shadow-lg">
+                    
+                    {% if auction.images.count > 1 %}
+                        <div class="flex gap-2 mt-4 overflow-x-auto">
+                            {% for img in auction.images.all %}
+                                <button onclick="changeMainImage('{{ img.image.url }}')" 
+                                        class="flex-shrink-0 w-20 h-20 rounded-md overflow-hidden border-2 hover:border-purple-500 transition-colors {% if forloop.first %}border-purple-500{% else %}border-gray-200{% endif %}">
+                                    <img src="{{ img.image.url }}" alt="Vignette {{ forloop.counter }}" class="w-full h-full object-cover">
+                                </button>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            {% else %}
+                <div class="w-full h-96 bg-gray-200 rounded-lg flex items-center justify-center">
+                    <span class="text-gray-500">Aucune image disponible</span>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Panneau latéral sticky -->
+        <div class="lg:sticky lg:top-8 h-fit">
+            <div class="bg-white rounded-lg shadow-lg p-6 border border-gray-200">
+                <!-- Statut -->
+                <div class="mb-4">
+                    {% if auction.status == 'LIVE' %}
+                        <span class="inline-block px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">● En cours</span>
+                    {% elif auction.status == 'SCHEDULED' %}
+                        <span class="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-semibold">⏰ Programmée</span>
+                    {% elif auction.status == 'ENDED' %}
+                        <span class="inline-block px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-semibold">Terminée</span>
+                    {% elif auction.status == 'SOLD' %}
+                        <span class="inline-block px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-semibold">✓ Vendue</span>
+                    {% elif auction.status == 'PAUSED' %}
+                        <span class="inline-block px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm font-semibold">⏸ En pause</span>
+                    {% elif auction.status == 'PENDING' %}
+                        <span class="inline-block px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-semibold">En attente</span>
+                    {% elif auction.status == 'REJECTED' %}
+                        <span class="inline-block px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-semibold">Rejetée</span>
+                    {% elif auction.status == 'CANCELLED' %}
+                        <span class="inline-block px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-semibold">Annulée</span>
+                    {% endif %}
+                </div>
+
+                <!-- Titre -->
+                <h1 class="text-2xl font-bold text-gray-900 mb-2">{{ auction.title }}</h1>
+                
+                <!-- Catégorie -->
+                <p class="text-gray-600 mb-4">
+                    Catégorie : <a href="{% url 'auctions:category' auction.category.slug %}" class="text-purple-600 hover:underline">{{ auction.category.name }}</a>
+                </p>
+
+                <!-- Prix -->
+                <div class="mb-6 p-4 bg-gray-50 rounded-lg">
+                    <p class="text-sm text-gray-600 mb-1">
+                        {% if auction.bids.exists %}
+                            Enchère actuelle
+                        {% else %}
+                            Prix de départ
+                        {% endif %}
+                    </p>
+                    <p class="text-3xl font-bold text-gray-900">
+                        {% if auction.current_price %}
+                            {{ auction.current_price|cents_to_euros }}
+                        {% else %}
+                            {{ auction.starting_price|cents_to_euros }}
+                        {% endif %}
+                    </p>
+                    {% if auction.current_price %}
+                        <p class="text-sm text-gray-600 mt-1">Prix de départ : {{ auction.starting_price|cents_to_euros }}</p>
+                    {% endif %}
+                    <p class="text-sm text-gray-600 mt-2">Incrément minimum : {{ auction.min_increment|cents_to_euros }}</p>
+                </div>
+
+                <!-- Compte à rebours (data-end-at pour JS) -->
+                {% if auction.status == 'LIVE' or auction.status == 'SCHEDULED' %}
+                    <div class="mb-6">
+                        <p class="text-sm text-gray-600 mb-2">
+                            {% if auction.status == 'LIVE' %}Se termine dans:{% else %}Commence dans:{% endif %}
+                        </p>
+                        <div id="countdown-{{ auction.id }}" 
+                             data-end-at="{{ auction.end_at.isoformat }}"
+                             class="text-2xl font-mono font-bold text-gray-900">
+                            --j --h --m --s
+                        </div>
+                    </div>
+                {% endif %}
+
+                <!-- Dates -->
+                <div class="mb-6 space-y-2 text-sm text-gray-600">
+                    <p><strong>Début :</strong> {{ auction.start_at|date:"d/m/Y à H:i" }}</p>
+                    <p><strong>Fin :</strong> {{ auction.end_at|date:"d/m/Y à H:i" }}</p>
+                </div>
+
+                <!-- Zone d'enchère (à remplir en Phase 4) -->
+                <div id="bid-zone" class="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    {% if auction.status == 'SCHEDULED' %}
+                        <p class="text-center text-gray-600">
+                            Les enchères ouvriront le {{ auction.start_at|date:"d/m/Y à H:i" }}
+                        </p>
+                    {% elif auction.status == 'LIVE' %}
+                        <p class="text-center text-gray-600 italic">
+                            Interface d'enchère à venir...
+                        </p>
+                    {% elif auction.status in 'ENDED,SOLD' %}
+                        <p class="text-center text-gray-600 font-semibold">
+                            Enchères terminées
+                        </p>
+                        {% if auction.winner %}
+                            <p class="text-center text-green-600 mt-2">
+                                Vendu à {{ auction.winner.username }}
+                            </p>
+                        {% endif %}
+                    {% elif auction.status == 'PAUSED' %}
+                        <p class="text-center text-orange-600 font-semibold">
+                            Enchères en pause
+                        </p>
+                    {% elif auction.status == 'PENDING' %}
+                        <p class="text-center text-gray-600">
+                            En attente de validation par un administrateur
+                        </p>
+                    {% elif auction.status == 'REJECTED' %}
+                        <p class="text-center text-red-600 font-semibold">
+                            Enchère rejetée
+                        </p>
+                        {% if auction.rejection_reason %}
+                            <p class="text-center text-red-500 text-sm mt-2">
+                                Motif : {{ auction.rejection_reason }}
+                            </p>
+                        {% endif %}
+                    {% elif auction.status == 'CANCELLED' %}
+                        <p class="text-center text-red-600 font-semibold">
+                            Enchère annulée
+                        </p>
+                    {% endif %}
+                </div>
+
+                <!-- Bouton Watchlist -->
+                {% if user.is_authenticated %}
+                    <button id="watchlist-btn" 
+                            data-auction-id="{{ auction.id }}"
+                            class="w-full py-3 px-4 border-2 {% if is_watching %}border-purple-600 bg-purple-50 text-purple-600{% else %}border-gray-300 bg-white text-gray-700 hover:border-purple-400{% endif %} rounded-lg font-semibold transition-colors">
+                        {% if is_watching %}
+                            ✓ Suivi
+                        {% else %}
+                            ♡ Suivre cette enchère
+                        {% endif %}
+                    </button>
+                {% else %}
+                    <a href="{% url 'accounts:login' %}?next={{ request.path }}" 
+                       class="block w-full py-3 px-4 border-2 border-gray-300 bg-white text-gray-700 rounded-lg font-semibold text-center hover:border-purple-400 transition-colors">
+                        Connectez-vous pour suivre
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Description et infos vendeur -->
+    <div class="mt-12 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Description -->
+        <div class="lg:col-span-2">
+            <h2 class="text-xl font-bold text-gray-900 mb-4">Description</h2>
+            <div class="bg-white rounded-lg shadow p-6 prose max-w-none">
+                {{ auction.description|linebreaks }}
+            </div>
+        </div>
+
+        <!-- Infos vendeur -->
+        <div>
+            <h2 class="text-xl font-bold text-gray-900 mb-4">Vendeur</h2>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center gap-4 mb-4">
+                    {% if auction.seller.avatar %}
+                        <img src="{{ auction.seller.avatar.url }}" alt="{{ auction.seller.username }}" class="w-12 h-12 rounded-full object-cover">
+                    {% else %}
+                        <div class="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-bold">
+                            {{ auction.seller.username|first|upper }}
+                        </div>
+                    {% endif %}
+                    <div>
+                        <p class="font-semibold text-gray-900">{{ auction.seller.username }}</p>
+                        <p class="text-sm text-gray-600">Membre depuis {{ auction.seller.date_joined|date:"F Y" }}</p>
+                    </div>
+                </div>
+                
+                <!-- Statistiques vendeur -->
+                <div class="border-t pt-4">
+                    <p class="text-sm text-gray-600 mb-2">Produits vendus :</p>
+                    <p class="text-lg font-bold text-gray-900">
+                        {{ auction.seller.won_auctions.count|default:0 }}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Historique des enchères (fragment HTMX - Phase 4) -->
+    {% if auction.bids.exists %}
+        <div class="mt-12">
+            <h2 class="text-xl font-bold text-gray-900 mb-4">Historique des enchères</h2>
+            <div class="bg-white rounded-lg shadow overflow-hidden">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enchérisseur</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for bid in bids %}
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {{ bid.user.username|slice:":1" }}***{{ bid.user.username|slice:"-1:" }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                                    {{ bid.amount|cents_to_euros }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                    {{ bid.created_at|date:"d/m/Y H:i" }}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% endif %}
+
+    <!-- Produits similaires -->
+    {% if similar_auctions %}
+        <div class="mt-12">
+            <h2 class="text-xl font-bold text-gray-900 mb-4">Produits similaires</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {% for similar in similar_auctions %}
+                    <a href="{% url 'auctions:detail' similar.slug %}" class="group">
+                        <div class="bg-white rounded-lg shadow overflow-hidden hover:shadow-lg transition-shadow">
+                            {% if similar.images.first %}
+                                <img src="{{ similar.images.first.image.url }}" alt="{{ similar.title }}" class="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-200">
+                            {% else %}
+                                <div class="w-full h-48 bg-gray-200 flex items-center justify-center">
+                                    <span class="text-gray-500">Pas d'image</span>
+                                </div>
+                            {% endif %}
+                            <div class="p-4">
+                                <h3 class="font-semibold text-gray-900 mb-2 line-clamp-2 group-hover:text-purple-600">{{ similar.title }}</h3>
+                                <p class="text-sm text-gray-600">
+                                    {% if similar.current_price %}
+                                        {{ similar.current_price|cents_to_euros }}
+                                    {% else %}
+                                        {{ similar.starting_price|cents_to_euros }}
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                    </a>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+// Changement d'image principale
+function changeMainImage(src) {
+    document.getElementById('main-image').src = src;
+    
+    // Mettre à jour les bordures des vignettes
+    const thumbnails = document.querySelectorAll('button[onclick^="changeMainImage"]');
+    thumbnails.forEach(btn => {
+        const img = btn.querySelector('img');
+        if (img.src === src || img.src.includes(src.split('/').pop())) {
+            btn.classList.remove('border-gray-200');
+            btn.classList.add('border-purple-500');
+        } else {
+            btn.classList.remove('border-purple-500');
+            btn.classList.add('border-gray-200');
+        }
+    });
+}
+
+// Gestion de la watchlist (à implémenter complètement en Phase 6)
+document.getElementById('watchlist-btn')?.addEventListener('click', function() {
+    const auctionId = this.dataset.auctionId;
+    // TODO: Implémenter l'appel API en Phase 6
+    alert('Fonctionnalité de suivi à venir...');
+});
+</script>
+{% endblock %}

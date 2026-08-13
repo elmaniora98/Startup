@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+
+{% block title %}Mes suivis | Enchère+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <h1 class="text-3xl font-bold text-gray-900 mb-8">Mes enchères suivies</h1>
+    
+    {% if watchlist_items %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for item in watchlist_items %}
+                <div class="bg-white rounded-lg shadow overflow-hidden hover:shadow-lg transition-shadow">
+                    {% if item.auction.images.first %}
+                        <img src="{{ item.auction.images.first.image.url }}" alt="{{ item.auction.title }}" class="w-full h-48 object-cover">
+                    {% else %}
+                        <div class="w-full h-48 bg-gray-200 flex items-center justify-center">
+                            <span class="text-gray-400">Pas d'image</span>
+                        </div>
+                    {% endif %}
+                    <div class="p-4">
+                        <h3 class="font-semibold text-gray-900 truncate">{{ item.auction.title }}</h3>
+                        <p class="text-brand-700 font-bold mt-1">{{ item.auction.current_price|default:item.auction.starting_price|cents_to_euros }}</p>
+                        <div class="mt-2 flex items-center justify-between">
+                            <span class="text-sm text-gray-500">
+                                {% if item.auction.status == 'LIVE' %}
+                                    <span class="text-green-600">● En cours</span>
+                                {% elif item.auction.status == 'SCHEDULED' %}
+                                    <span class="text-blue-600">● Bientôt</span>
+                                {% else %}
+                                    {{ item.auction.get_status_display }}
+                                {% endif %}
+                            </span>
+                            <span class="text-xs text-gray-400">{{ item.auction.end_at|timeuntil }}</span>
+                        </div>
+                        <div class="mt-4 flex space-x-2">
+                            <a href="{% url 'auctions:detail' item.auction.slug %}" class="flex-1 text-center bg-brand-700 hover:bg-brand-800 text-white text-sm py-2 rounded transition-colors">
+                                Voir
+                            </a>
+                            <form method="post" action="#" class="flex-1">
+                                {% csrf_token %}
+                                <button type="submit" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm py-2 rounded transition-colors">
+                                    Ne plus suivre
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="bg-white rounded-lg shadow p-12 text-center">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+            </svg>
+            <h3 class="mt-2 text-sm font-medium text-gray-900">Aucune enchère suivie</h3>
+            <p class="mt-1 text-sm text-gray-500">Explorez les enchères et ajoutez-les à votre watchlist.</p>
+            <div class="mt-6">
+                <a href="{% url 'auctions:home' %}" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-brand-700 hover:bg-brand-800">
+                    Découvrir les enchères
+                </a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
