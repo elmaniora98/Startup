@@ -2,7 +2,8 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse, HttpResponse
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
-from django.db import transaction
+from django.db import transaction, models
+from django.db.models import Count
 from django.core.cache import cache
 from datetime import timedelta
 import json
@@ -20,10 +21,35 @@ def error_500(request):
 
 def home(request):
     """Page d'accueil - grille des enchères LIVE et SCHEDULED"""
-    live_auctions = Auction.objects.filter(status=Auction.Status.LIVE).select_related('category').prefetch_related('images')[:12]
-    scheduled_auctions = Auction.objects.filter(status=Auction.Status.SCHEDULED).select_related('category').prefetch_related('images')[:6]
+    # Récupération des paramètres GET
+    category_slug = request.GET.get('category', '')
+    sort_by = request.GET.get('sort', 'ending')  # 'ending' ou 'newest'
+    
+    # Filtrage par catégorie
+    live_filter = {'status': Auction.Status.LIVE}
+    scheduled_filter = {'status': Auction.Status.SCHEDULED}
+    
+    if category_slug:
+        live_filter['category__slug'] = category_slug
+        scheduled_filter['category__slug'] = category_slug
+    
+    # Enchères LIVE avec annotation du nombre d'enchères
+    live_auctions = Auction.objects.filter(**live_filter)\
+        .select_related('category')\
+        .prefetch_related('images')\
+        .annotate(bid_count=Count('bids'))\
+        .order_by('end_at' if sort_by == 'ending' else '-created_at')
+    
+    # Enchères SCHEDULED
+    scheduled_auctions = Auction.objects.filter(**scheduled_filter)\
+        .select_related('category')\
+        .prefetch_related('images')\
+        .order_by('start_at')
+    
+    # Toutes les catégories pour le filtre
     categories = Category.objects.all()
     
+    # Compteur de notifications non lues
     unread_count = 0
     if request.user.is_authenticated:
         unread_count = Notification.objects.filter(user=request.user, read_at__isnull=True).count()
@@ -33,6 +59,8 @@ def home(request):
         'scheduled_auctions': scheduled_auctions,
         'categories': categories,
         'unread_count': unread_count,
+        'selected_category': category_slug,
+        'selected_sort': sort_by,
     }
     return render(request, 'auctions/home.html', context)
 
