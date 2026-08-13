@@ -367,3 +367,220 @@ def delete_auction(request, pk):
         return redirect('accounts:my_products')
 
     return render(request, 'auctions/delete_confirm.html', {'auction': auction})
+
+
+# =============================================================================
+# VUES ADMIN
+# =============================================================================
+
+from auctions.decorators import admin_required
+from auctions.utils import log_action
+from auctions.models import AuditLog
+
+
+@admin_required
+def admin_dashboard(request):
+    """Tableau de bord admin avec statistiques"""
+    from accounts.models import User
+    from auctions.models import Bid
+    
+    pending_count = Auction.objects.filter(status=Auction.Status.PENDING).count()
+    live_count = Auction.objects.filter(status=Auction.Status.LIVE).count()
+    user_count = User.objects.count()
+    bid_count = Bid.objects.count()
+    
+    context = {
+        'pending_count': pending_count,
+        'live_count': live_count,
+        'user_count': user_count,
+        'bid_count': bid_count,
+    }
+    
+    return render(request, 'admin/dashboard.html', context)
+
+
+@admin_required
+def validation_queue(request):
+    """File d'attente des enchères en attente de validation"""
+    pending_auctions = Auction.objects.filter(
+        status=Auction.Status.PENDING
+    ).select_related('seller', 'category').prefetch_related('images').order_by('created_at')
+    
+    pending_count = pending_auctions.count()
+    
+    context = {
+        'pending_auctions': pending_auctions,
+        'pending_count': pending_count,
+    }
+    
+    return render(request, 'admin/validation_queue.html', context)
+
+
+@admin_required
+def approve_auction(request, pk):
+    """Approbation d'une enchère avec ajustement des dates"""
+    auction = get_object_or_404(Auction, pk=pk)
+    
+    # Vérifier que l'enchère est toujours PENDING
+    if auction.status != Auction.Status.PENDING:
+        messages.error(request, f"Cette enchère n'est plus en attente (statut actuel : {auction.get_status_display()}).")
+        return redirect('validation_queue')
+    
+    # Vérifier que l'admin n'est pas le vendeur
+    if auction.seller == request.user:
+        messages.error(request, "Vous ne pouvez pas valider votre propre soumission.")
+        return redirect('validation_queue')
+    
+    if request.method == 'POST':
+        start_at_str = request.POST.get('start_at')
+        end_at_str = request.POST.get('end_at')
+        
+        if not start_at_str or not end_at_str:
+            messages.error(request, "Les dates de début et de fin sont obligatoires.")
+            return redirect('validation_queue')
+        
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        try:
+            start_at = timezone.make_aware(timezone.datetime.fromisoformat(start_at_str.replace('Z', '+00:00')))
+            end_at = timezone.make_aware(timezone.datetime.fromisoformat(end_at_str.replace('Z', '+00:00')))
+        except (ValueError, TypeError):
+            messages.error(request, "Format de date invalide.")
+            return redirect('validation_queue')
+        
+        # Validations
+        now = timezone.now()
+        duration = end_at - start_at
+        
+        if end_at <= start_at:
+            messages.error(request, "La date de fin doit être postérieure à la date de début.")
+            return redirect('validation_queue')
+        
+        if start_at < now:
+            messages.error(request, "La date de début doit être dans le futur.")
+            return redirect('validation_queue')
+        
+        if duration < timedelta(hours=1):
+            messages.error(request, "La durée minimale est de 1 heure.")
+            return redirect('validation_queue')
+        
+        if duration > timedelta(days=30):
+            messages.error(request, "La durée maximale est de 30 jours.")
+            return redirect('validation_queue')
+        
+        # Mise à jour de l'enchère
+        auction.start_at = start_at
+        auction.end_at = end_at
+        auction.status = Auction.Status.SCHEDULED
+        auction.save()
+        
+        # Créer la notification pour le vendeur
+        Notification.objects.create(
+            user=auction.seller,
+            type='APPROVED',
+            payload={
+                'auction_id': auction.id,
+                'auction_title': auction.title,
+                'start_at': str(start_at),
+                'end_at': str(end_at),
+            }
+        )
+        
+        # Journaliser dans l'AuditLog
+        log_action(
+            actor=request.user,
+            action='APPROVE_AUCTION',
+            target_type='Auction',
+            target_id=auction.id,
+            details={
+                'start_at': str(start_at),
+                'end_at': str(end_at),
+                'title': auction.title,
+                'seller': auction.seller.username,
+            }
+        )
+        
+        messages.success(request, f"L'enchère '{auction.title}' a été approuvée et programmée.")
+        return redirect('validation_queue')
+    
+    return redirect('validation_queue')
+
+
+@admin_required
+def reject_auction(request, pk):
+    """Rejet d'une enchère avec motif obligatoire"""
+    auction = get_object_or_404(Auction, pk=pk)
+    
+    # Vérifier que l'enchère est toujours PENDING
+    if auction.status != Auction.Status.PENDING:
+        messages.error(request, f"Cette enchère n'est plus en attente (statut actuel : {auction.get_status_display()}).")
+        return redirect('validation_queue')
+    
+    # Vérifier que l'admin n'est pas le vendeur
+    if auction.seller == request.user:
+        messages.error(request, "Vous ne pouvez pas rejeter votre propre soumission.")
+        return redirect('validation_queue')
+    
+    if request.method == 'POST':
+        rejection_reason = request.POST.get('rejection_reason', '').strip()
+        
+        if len(rejection_reason) < 10:
+            messages.error(request, "Le motif de rejet doit contenir au moins 10 caractères.")
+            return redirect('validation_queue')
+        
+        # Mise à jour de l'enchère
+        auction.status = Auction.Status.REJECTED
+        auction.rejection_reason = rejection_reason
+        auction.save()
+        
+        # Créer la notification pour le vendeur
+        Notification.objects.create(
+            user=auction.seller,
+            type='REJECTED',
+            payload={
+                'auction_id': auction.id,
+                'auction_title': auction.title,
+                'reason': rejection_reason,
+            }
+        )
+        
+        # Journaliser dans l'AuditLog
+        log_action(
+            actor=request.user,
+            action='REJECT_AUCTION',
+            target_type='Auction',
+            target_id=auction.id,
+            details={
+                'motif': rejection_reason,
+                'title': auction.title,
+                'seller': auction.seller.username,
+            }
+        )
+        
+        messages.success(request, f"L'enchère '{auction.title}' a été rejetée.")
+        return redirect('validation_queue')
+    
+    return redirect('validation_queue')
+
+
+@admin_required
+def audit_log_view(request):
+    """Journal d'audit paginé"""
+    from django.core.paginator import Paginator
+    
+    audit_logs = AuditLog.objects.select_related('actor').order_by('-created_at')
+    
+    paginator = Paginator(audit_logs, 25)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
+    pending_count = Auction.objects.filter(status=Auction.Status.PENDING).count()
+    
+    context = {
+        'audit_logs': page_obj,
+        'page_obj': page_obj,
+        'pending_count': pending_count,
+    }
+    
+    return render(request, 'admin/audit_log.html', context)
