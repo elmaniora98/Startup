@@ -13,4 +13,10 @@ urlpatterns = [
     path('api/auctions/<int:pk>/watch/', views.toggle_watchlist, name='api_toggle_watchlist'),
     path('api/auctions/<int:pk>/price-block/', views.price_block, name='api_price_block'),
     path('categorie/<slug:slug>/', views.category, name='category'),
+    
+    # URLs pour la proposition et gestion des produits (Phase 2)
+    path('compte/proposer/', views.propose_auction, name='propose_auction'),
+    path('compte/mes-produits/', views.my_products, name='my_products_view'),
+    path('compte/mes-produits/<int:pk>/modifier/', views.edit_auction, name='edit_auction'),
+    path('compte/mes-produits/<int:pk>/supprimer/', views.delete_auction, name='delete_auction'),
 ]

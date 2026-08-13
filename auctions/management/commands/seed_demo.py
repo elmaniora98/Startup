@@ -64,6 +64,20 @@ class Command(BaseCommand):
                 self.stdout.write(f'✓ Utilisateur existe déjà: {email}')
             users.append(user)
 
+        # Créer un deuxième admin pour tester les conflits d'auto-validation
+        admin2, created = User.objects.get_or_create(
+            email='admin2@enchere.plus',
+            defaults={
+                'username': 'admin2',
+                'role': User.Role.ADMIN,
+                'is_staff': True,
+            }
+        )
+        if created:
+            admin2.set_password('admin123')
+            admin2.save()
+            self.stdout.write(self.style.SUCCESS('✓ Admin2 créé: admin2@enchere.plus / admin123'))
+
         # Créer les catégories
         categories_data = [
             ('Électronique', 'electronique'),
@@ -125,22 +139,22 @@ class Command(BaseCommand):
             while Auction.objects.filter(slug=slug).exists():
                 slug = f'{base_slug}-{counter}'
                 counter += 1
-            
+
             auction = Auction.objects.create(slug=slug, **data)
-            
+
             # Créer quelques enchères
             bid_amounts = [
-                data['starting_price'] + data['min_increment'] * i 
+                data['starting_price'] + data['min_increment'] * i
                 for i in range(1, 4)
             ]
             for amount in bid_amounts:
                 bidder = users[amount % len(users)]
                 Bid.objects.create(auction=auction, user=bidder, amount=amount)
-            
+
             # Mettre à jour le prix actuel
             auction.current_price = bid_amounts[-1] if bid_amounts else None
             auction.save()
-            
+
             self.stdout.write(self.style.SUCCESS(f'✓ Enchère LIVE créée: {data["title"]}'))
 
         # Données pour les enchères SCHEDULED (2)
@@ -177,7 +191,7 @@ class Command(BaseCommand):
             while Auction.objects.filter(slug=slug).exists():
                 slug = f'{base_slug}-{counter}'
                 counter += 1
-            
+
             auction = Auction.objects.create(slug=slug, **data)
             self.stdout.write(self.style.SUCCESS(f'✓ Enchère SCHEDULED créée: {data["title"]}'))
 
@@ -189,7 +203,7 @@ class Command(BaseCommand):
         while Auction.objects.filter(slug=slug).exists():
             slug = f'{base_slug}-{counter}'
             counter += 1
-        
+
         ended_auction = Auction.objects.create(
             slug=slug,
             title=ended_title,
@@ -207,25 +221,72 @@ class Command(BaseCommand):
         Bid.objects.create(auction=ended_auction, user=users[1], amount=85000)
         self.stdout.write(self.style.SUCCESS('✓ Enchère ENDED créée'))
 
+        # Créer une enchère PENDING (1)
+        pending_title = 'Ordinateur portable gaming'
+        base_slug = slugify(pending_title)
+        slug = base_slug
+        counter = 1
+        while Auction.objects.filter(slug=slug).exists():
+            slug = f'{base_slug}-{counter}'
+            counter += 1
+
+        pending_auction = Auction.objects.create(
+            slug=slug,
+            title=pending_title,
+            description='PC portable gaming haute performance, RTX 4070, 32GB RAM, 1TB SSD.',
+            category=categories['electronique'],
+            starting_price=100000,  # 1000 €
+            min_increment=2000,  # 20 €
+            start_at=now + timedelta(days=1),
+            end_at=now + timedelta(days=3),
+            status=Auction.Status.PENDING,
+            seller=users[0],
+        )
+        self.stdout.write(self.style.SUCCESS('✓ Enchère PENDING créée'))
+
+        # Créer une enchère REJECTED (1)
+        rejected_title = 'Contrefaçon sac de luxe'
+        base_slug = slugify(rejected_title)
+        slug = base_slug
+        counter = 1
+        while Auction.objects.filter(slug=slug).exists():
+            slug = f'{base_slug}-{counter}'
+            counter += 1
+
+        rejected_auction = Auction.objects.create(
+            slug=slug,
+            title=rejected_title,
+            description='Sac à main de marque (produit saisi par la douane).',
+            category=categories['mode'],
+            starting_price=5000,  # 50 €
+            min_increment=500,  # 5 €
+            start_at=now + timedelta(days=1),
+            end_at=now + timedelta(days=2),
+            status=Auction.Status.REJECTED,
+            rejection_reason='Produit contrefait suspecté. Preuve d\'authenticité requise.',
+            seller=users[1],
+        )
+        self.stdout.write(self.style.SUCCESS('✓ Enchère REJECTED créée'))
+
         # Créer des images placeholder pour les enchères
         self.stdout.write('\nCréation des images placeholder...')
-        
+
         # Créer un dossier pour les images placeholder
         placeholder_dir = os.path.join('media', 'auctions')
         os.makedirs(placeholder_dir, exist_ok=True)
-        
+
         # Pour chaque enchère sans image, créer un placeholder
         for auction in Auction.objects.all():
             if not auction.images.exists():
                 # Créer un fichier placeholder simple
                 filename = f'placeholder_{auction.id}.png'
                 filepath = os.path.join(placeholder_dir, filename)
-                
+
                 # Image PNG 1x1 pixel blanc (minimaliste)
                 with open(filepath, 'wb') as f:
                     # En-tête PNG minimal
                     f.write(b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82')
-                
+
                 AuctionImage.objects.create(auction=auction, image=f'auctions/{filename}', order=0)
                 self.stdout.write(f'  → Placeholder ajouté à: {auction.title}')
 
