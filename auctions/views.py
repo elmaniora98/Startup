@@ -3,14 +3,15 @@ from django.http import JsonResponse, HttpResponse
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from django.db import transaction, models
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.core.cache import cache
 from django.contrib import messages
 from django.utils.text import slugify
+from django.views.decorators.http import require_POST
 from datetime import timedelta
 import json
 
-from .models import Auction, Bid, Watchlist, Category, Notification, AuditLog
+from .models import Auction, Bid, Watchlist, Category, Notification, AuditLog, User
 from .forms import ProposeAuctionForm
 
 
@@ -584,3 +585,439 @@ def audit_log_view(request):
     }
     
     return render(request, 'admin/audit_log.html', context)
+
+
+# =============================================================================
+# PHASE 7 - ADMIN AVANCÉ
+# =============================================================================
+
+@admin_required
+def admin_auctions(request):
+    """Liste de toutes les enchères avec filtres pour les administrateurs."""
+    from django.core.paginator import Paginator
+    
+    auctions = Auction.objects.select_related('seller', 'category', 'highest_bid').all()
+    
+    # Filtres
+    status = request.GET.get('status')
+    search = request.GET.get('search')
+    
+    if status:
+        auctions = auctions.filter(status=status)
+    
+    if search:
+        auctions = auctions.filter(
+            Q(title__icontains=search) |
+            Q(description__icontains=search) |
+            Q(seller__username__icontains=search)
+        )
+    
+    # Pagination
+    paginator = Paginator(auctions.order_by('-created_at'), 25)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'auctions': page_obj,
+        'page_obj': page_obj,
+        'is_paginated': page_obj.has_other_pages(),
+    }
+    
+    return render(request, 'admin/auctions_list.html', context)
+
+
+@admin_required
+def admin_auction_detail(request, pk):
+    """Détail d'une enchère pour les administrateurs."""
+    auction = get_object_or_404(Auction.objects.select_related('seller', 'category'), pk=pk)
+    bids = auction.bids.select_related('bidder').order_by('-created_at')[:20]
+    
+    context = {
+        'auction': auction,
+        'bids': bids,
+    }
+    
+    return render(request, 'admin/auction_detail.html', context)
+
+
+@admin_required
+@require_POST
+def pause_auction(request, pk):
+    """Met en pause une enchère (LIVE → PAUSED)."""
+    auction = get_object_or_404(Auction, pk=pk)
+    
+    if auction.status != Auction.Status.LIVE:
+        messages.error(request, f"Cette enchère n'est pas en cours (statut: {auction.get_status_display()})")
+        return redirect('admin_auctions')
+    
+    auction.status = Auction.Status.PAUSED
+    auction.save()
+    
+    log_action(
+        actor=request.user,
+        action='PAUSE_AUCTION',
+        target_type='Auction',
+        target_id=auction.id,
+        details={'reason': 'Pause manuelle par admin'}
+    )
+    
+    messages.success(request, f"L'enchère '{auction.title}' a été mise en pause.")
+    return redirect('admin_auctions')
+
+
+@admin_required
+@require_POST
+def resume_auction(request, pk):
+    """Reprend une enchère en pause (PAUSED → LIVE)."""
+    auction = get_object_or_404(Auction, pk=pk)
+    
+    if auction.status != Auction.Status.PAUSED:
+        messages.error(request, f"Cette enchère n'est pas en pause (statut: {auction.get_status_display()})")
+        return redirect('admin_auctions')
+    
+    auction.status = Auction.Status.LIVE
+    auction.save()
+    
+    log_action(
+        actor=request.user,
+        action='RESUME_AUCTION',
+        target_type='Auction',
+        target_id=auction.id,
+        details={'reason': 'Reprise manuelle par admin'}
+    )
+    
+    messages.success(request, f"L'enchère '{auction.title}' a été reprise.")
+    return redirect('admin_auctions')
+
+
+@admin_required
+@require_POST
+def cancel_auction(request, pk):
+    """Annule une enchère."""
+    auction = get_object_or_404(Auction, pk=pk)
+    reason = request.POST.get('reason', 'Annulation par administrateur')
+    
+    if auction.status in [Auction.Status.SOLD, Auction.Status.CANCELLED]:
+        messages.error(request, f"Cette enchère ne peut plus être annulée.")
+        return redirect('admin_auctions')
+    
+    old_status = auction.status
+    auction.status = Auction.Status.CANCELLED
+    auction.save()
+    
+    # Notifier tous les participants
+    bidders = set(bid.bidder for bid in auction.bids.all())
+    bidders.add(auction.seller)
+    
+    for bidder in bidders:
+        Notification.objects.create(
+            user=bidder,
+            type='AUCTION_CANCELLED',
+            title='Enchère annulée',
+            message=f'L\'enchère "{auction.title}" a été annulée. Raison: {reason}',
+            related_object=auction
+        )
+    
+    log_action(
+        actor=request.user,
+        action='CANCEL_AUCTION',
+        target_type='Auction',
+        target_id=auction.id,
+        details={'old_status': old_status, 'reason': reason}
+    )
+    
+    messages.success(request, f"L'enchère '{auction.title}' a été annulée.")
+    return redirect('admin_auctions')
+
+
+@admin_required
+@require_POST
+def extend_auction(request, pk):
+    """Prolonge la durée d'une enchère."""
+    auction = get_object_or_404(Auction, pk=pk)
+    
+    if auction.status not in [Auction.Status.LIVE, Auction.Status.PAUSED]:
+        messages.error(request, f"Impossible de prolonger cette enchère (statut: {auction.get_status_display()})")
+        return redirect('admin_auctions')
+    
+    minutes = int(request.POST.get('minutes', 30))
+    if minutes < 1 or minutes > 1440:
+        messages.error(request, "La durée doit être entre 1 et 1440 minutes.")
+        return redirect('admin_auctions')
+    
+    from datetime import timedelta
+    old_end = auction.end_at
+    auction.end_at = timezone.now() + timedelta(minutes=minutes)
+    auction.save()
+    
+    log_action(
+        actor=request.user,
+        action='EXTEND_AUCTION',
+        target_type='Auction',
+        target_id=auction.id,
+        details={'old_end': str(old_end), 'new_end': str(auction.end_at), 'minutes_added': minutes}
+    )
+    
+    messages.success(request, f"L'enchère '{auction.title}' a été prolongée de {minutes} minutes.")
+    return redirect('admin_auctions')
+
+
+@admin_required
+def admin_users(request):
+    """Liste des utilisateurs avec statistiques."""
+    from django.core.paginator import Paginator
+    from django.db.models import Count, Q
+    
+    users = User.objects.annotate(
+        auctions_sold=Count('auctions_sold', filter=Q(auctions_sold__status='SOLD')),
+        auctions_pending=Count('auctions', filter=Q(auctions__status='PENDING')),
+        bids_placed=Count('bids_placed')
+    )
+    
+    # Filtres
+    role = request.GET.get('role')
+    status = request.GET.get('status')
+    search = request.GET.get('search')
+    
+    if role:
+        users = users.filter(role=role)
+    
+    if status == 'active':
+        users = users.filter(is_active=True)
+    elif status == 'blocked':
+        users = users.filter(is_active=False)
+    
+    if search:
+        users = users.filter(
+            Q(username__icontains=search) |
+            Q(email__icontains=search)
+        )
+    
+    # Stats globales
+    total_users = users.count()
+    active_users = users.filter(is_active=True).count()
+    blocked_users = users.filter(is_active=False).count()
+    admin_count = users.filter(role='ADMIN').count()
+    
+    # Pagination
+    paginator = Paginator(users.order_by('-date_joined'), 25)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'users': page_obj,
+        'page_obj': page_obj,
+        'is_paginated': page_obj.has_other_pages(),
+        'total_users': total_users,
+        'active_users': active_users,
+        'blocked_users': blocked_users,
+        'admin_count': admin_count,
+    }
+    
+    return render(request, 'admin/users_list.html', context)
+
+
+@admin_required
+def admin_user_detail(request, pk):
+    """Détail d'un utilisateur pour les administrateurs."""
+    user = get_object_or_404(User.objects.prefetch_related('auctions', 'bids_placed'), pk=pk)
+    
+    context = {
+        'user': user,
+        'auctions': user.auctions.all()[:10],
+        'bids': user.bids_placed.select_related('auction').order_by('-created_at')[:20],
+    }
+    
+    return render(request, 'admin/user_detail.html', context)
+
+
+@admin_required
+@require_POST
+def block_user(request, pk):
+    """Bloque un utilisateur."""
+    user = get_object_or_404(User, pk=pk)
+    
+    if user == request.user:
+        messages.error(request, "Vous ne pouvez pas vous bloquer vous-même.")
+        return redirect('admin_users')
+    
+    user.is_active = False
+    user.save()
+    
+    log_action(
+        actor=request.user,
+        action='BLOCK_USER',
+        target_type='User',
+        target_id=user.id,
+        details={'username': user.username}
+    )
+    
+    messages.success(request, f"L'utilisateur '{user.username}' a été bloqué.")
+    return redirect('admin_users')
+
+
+@admin_required
+@require_POST
+def unblock_user(request, pk):
+    """Débloque un utilisateur."""
+    user = get_object_or_404(User, pk=pk)
+    
+    user.is_active = True
+    user.save()
+    
+    log_action(
+        actor=request.user,
+        action='UNBLOCK_USER',
+        target_type='User',
+        target_id=user.id,
+        details={'username': user.username}
+    )
+    
+    messages.success(request, f"L'utilisateur '{user.username}' a été débloqué.")
+    return redirect('admin_users')
+
+
+@admin_required
+@require_POST
+def promote_user(request, pk):
+    """Promouvoit un utilisateur en administrateur."""
+    user = get_object_or_404(User, pk=pk)
+    
+    if user == request.user:
+        messages.error(request, "Vous ne pouvez pas modifier votre propre rôle.")
+        return redirect('admin_users')
+    
+    user.role = User.Role.ADMIN
+    user.save()
+    
+    log_action(
+        actor=request.user,
+        action='PROMOTE_USER',
+        target_type='User',
+        target_id=user.id,
+        details={'username': user.username, 'new_role': 'ADMIN'}
+    )
+    
+    messages.success(request, f"L'utilisateur '{user.username}' a été promu administrateur.")
+    return redirect('admin_users')
+
+
+@admin_required
+@require_POST
+def demote_user(request, pk):
+    """Rétrograde un administrateur en utilisateur normal."""
+    user = get_object_or_404(User, pk=pk)
+    
+    if user == request.user:
+        messages.error(request, "Vous ne pouvez pas modifier votre propre rôle.")
+        return redirect('admin_users')
+    
+    user.role = User.Role.USER
+    user.save()
+    
+    log_action(
+        actor=request.user,
+        action='DEMOTE_USER',
+        target_type='User',
+        target_id=user.id,
+        details={'username': user.username, 'new_role': 'USER'}
+    )
+    
+    messages.success(request, f"L'utilisateur '{user.username}' a été rétrogradé.")
+    return redirect('admin_users')
+
+
+@admin_required
+def admin_categories(request):
+    """Liste des catégories avec statistiques."""
+    from django.db.models import Count
+    
+    categories = Category.objects.annotate(auction_count=Count('auctions')).order_by('name')
+    
+    total_categories = categories.count()
+    categories_with_auctions = categories.filter(auction_count__gt=0).count()
+    total_auctions = sum(cat.auction_count for cat in categories)
+    
+    context = {
+        'categories': categories,
+        'total_categories': total_categories,
+        'categories_with_auctions': categories_with_auctions,
+        'total_auctions': total_auctions,
+    }
+    
+    return render(request, 'admin/categories_list.html', context)
+
+
+@admin_required
+def create_category(request):
+    """Crée une nouvelle catégorie."""
+    from auctions.forms import CategoryForm
+    
+    if request.method == 'POST':
+        form = CategoryForm(request.POST)
+        if form.is_valid():
+            category = form.save()
+            log_action(
+                actor=request.user,
+                action='CREATE_CATEGORY',
+                target_type='Category',
+                target_id=category.id,
+                details={'name': category.name}
+            )
+            messages.success(request, f"La catégorie '{category.name}' a été créée.")
+            return redirect('admin_categories')
+    else:
+        form = CategoryForm()
+    
+    return render(request, 'admin/category_form.html', {'form': form, 'action': 'Créer'})
+
+
+@admin_required
+def edit_category(request, pk):
+    """Modifie une catégorie existante."""
+    from auctions.forms import CategoryForm
+    
+    category = get_object_or_404(Category, pk=pk)
+    
+    if request.method == 'POST':
+        form = CategoryForm(request.POST, instance=category)
+        if form.is_valid():
+            category = form.save()
+            log_action(
+                actor=request.user,
+                action='EDIT_CATEGORY',
+                target_type='Category',
+                target_id=category.id,
+                details={'name': category.name}
+            )
+            messages.success(request, f"La catégorie '{category.name}' a été modifiée.")
+            return redirect('admin_categories')
+    else:
+        form = CategoryForm(instance=category)
+    
+    return render(request, 'admin/category_form.html', {'form': form, 'action': 'Modifier', 'category': category})
+
+
+@admin_required
+@require_POST
+def delete_category(request, pk):
+    """Supprime une catégorie (seulement si aucune enchère associée)."""
+    category = get_object_or_404(Category, pk=pk)
+    
+    if category.auctions.exists():
+        messages.error(request, "Impossible de supprimer une catégorie qui contient des enchères.")
+        return redirect('admin_categories')
+    
+    name = category.name
+    category.delete()
+    
+    log_action(
+        actor=request.user,
+        action='DELETE_CATEGORY',
+        target_type='Category',
+        target_id=pk,
+        details={'name': name}
+    )
+    
+    messages.success(request, f"La catégorie '{name}' a été supprimée.")
+    return redirect('admin_categories')

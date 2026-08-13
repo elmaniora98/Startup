@@ -16,22 +16,22 @@ class AdminAccessTest(TestCase):
         cls.staff_user = User.objects.create_user(username='staff', email='staff@test.fr', password='test1234', is_staff=True, role=User.Role.USER)
         cls.category = Category.objects.create(name='Test', slug='test')
     def test_anonymous_redirected(self):
-        for url_name in ['admin_dashboard', 'validation_queue', 'audit_log']:
+        for url_name in ['auctions:admin_dashboard', 'auctions:validation_queue', 'auctions:audit_log']:
             response = self.client.get(reverse(url_name))
             self.assertEqual(response.status_code, 302)
     def test_user_forbidden(self):
         self.client.login(username='user', password='test1234')
-        for url_name in ['admin_dashboard', 'validation_queue', 'audit_log']:
+        for url_name in ['auctions:admin_dashboard', 'auctions:validation_queue', 'auctions:audit_log']:
             response = self.client.get(reverse(url_name))
             self.assertEqual(response.status_code, 403)
     def test_admin_ok(self):
         self.client.login(username='admin', password='admin123')
-        for url_name in ['admin_dashboard', 'validation_queue', 'audit_log']:
+        for url_name in ['auctions:admin_dashboard', 'auctions:validation_queue', 'auctions:audit_log']:
             response = self.client.get(reverse(url_name))
             self.assertEqual(response.status_code, 200)
     def test_staff_not_admin_forbidden(self):
         self.client.login(username='staff', password='test1234')
-        for url_name in ['admin_dashboard', 'validation_queue', 'audit_log']:
+        for url_name in ['auctions:admin_dashboard', 'auctions:validation_queue', 'auctions:audit_log']:
             response = self.client.get(reverse(url_name))
             self.assertEqual(response.status_code, 403)
 
