@@ -76,7 +76,8 @@ class ProposeAuctionForm(forms.ModelForm):
             'description': forms.Textarea(attrs={'class': 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500', 'rows': 5}),
         }
     
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, seller=None, **kwargs):
+        self.seller = seller
         super().__init__(*args, **kwargs)
         # Valeur par défaut pour start_at : maintenant + 1 jour
         if not self.instance.pk and 'start_at' not in self.initial:

@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Recherche — Enchère+{% endblock %}
+
+{% block content %}
+<main class="flex-grow">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- En-tête de recherche -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-4">Résultats de recherche</h1>
+            
+            <form method="GET" action="{% url 'auctions:search' %}" class="flex flex-col md:flex-row gap-4">
+                <div class="flex-grow">
+                    <input
+                        type="text"
+                        name="q"
+                        value="{{ query }}"
+                        placeholder="Rechercher une enchère..."
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                    >
+                </div>
+                
+                <select name="status" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500">
+                    <option value="LIVE" {% if selected_status == 'LIVE' %}selected{% endif %}>En direct</option>
+                    <option value="SCHEDULED" {% if selected_status == 'SCHEDULED' %}selected{% endif %}>À venir</option>
+                    <option value="" {% if not selected_status %}selected{% endif %}>Tous les statuts</option>
+                </select>
+                
+                <select name="category" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500">
+                    <option value="">Toutes les catégories</option>
+                    {% for cat in categories %}
+                        <option value="{{ cat.slug }}" {% if selected_category == cat.slug %}selected{% endif %}>
+                            {{ cat.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+                
+                <button type="submit" class="px-6 py-2 bg-brand-700 text-white rounded-lg hover:bg-brand-800 transition-colors font-semibold">
+                    Filtrer
+                </button>
+            </form>
+        </div>
+
+        <!-- Résultats -->
+        {% if auctions %}
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {% for auction in auctions %}
+                    <a href="{% url 'auctions:detail' auction.slug %}" class="group bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300">
+                        <div class="aspect-square overflow-hidden bg-gray-200">
+                            {% if auction.images.first %}
+                                <img src="{{ auction.images.first.url }}" alt="{{ auction.title }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                            {% else %}
+                                <div class="w-full h-full flex items-center justify-center text-gray-400">
+                                    <svg class="h-16 w-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                    </svg>
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs font-semibold px-2 py-1 rounded 
+                                    {% if auction.status == 'LIVE' %}bg-green-100 text-green-800
+                                    {% elif auction.status == 'SCHEDULED' %}bg-blue-100 text-blue-800
+                                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                    {% if auction.status == 'LIVE' %}EN DIRECT
+                                    {% elif auction.status == 'SCHEDULED' %}À VENIR
+                                    {% else %}{{ auction.get_status_display }}{% endif %}
+                                </span>
+                            </div>
+                            
+                            <h3 class="font-semibold text-gray-900 mb-2 line-clamp-2 group-hover:text-brand-700 transition-colors">
+                                {{ auction.title }}
+                            </h3>
+                            
+                            <div class="space-y-1">
+                                <p class="text-sm text-gray-600">
+                                    <span class="font-semibold">Prix actuel:</span>
+                                    {% if auction.current_bid %}
+                                        {{ auction.current_bid.amount|floatformat:2 }} €
+                                    {% else %}
+                                        {{ auction.starting_price|floatformat:2 }} €
+                                    {% endif %}
+                                </p>
+                                
+                                <p class="text-xs text-gray-500">
+                                    {% if auction.status == 'LIVE' %}
+                                        Fin: {{ auction.end_at|date:"d M Y H:i" }}
+                                    {% else %}
+                                        Début: {{ auction.start_at|date:"d M Y H:i" }}
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                    </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="text-center py-16">
+                <svg class="mx-auto h-24 w-24 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">Aucun résultat trouvé</h3>
+                <p class="text-gray-600 mb-6">Essayez de modifier vos critères de recherche</p>
+                <a href="{% url 'auctions:home' %}" class="inline-block px-6 py-2 bg-brand-700 text-white rounded-lg hover:bg-brand-800 transition-colors">
+                    Retour à l'accueil
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</main>
+{% endblock %}
