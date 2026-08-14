@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block title %}Connexion - Enchère+{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-4">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0 text-center">Connexion</h4>
+                </div>
+                <div class="card-body">
+                    {% if form.errors %}
+                        <div class="alert alert-danger">
+                            Nom d'utilisateur ou mot de passe incorrect.
+                        </div>
+                    {% endif %}
+                    
+                    {% if next %}
+                        <input type="hidden" name="next" value="{{ next }}">
+                    {% endif %}
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="id_username" class="form-label">Nom d'utilisateur</label>
+                            <input type="text" class="form-control" id="id_username" name="username" required autofocus>
+                        </div>
+                        <div class="mb-3">
+                            <label for="id_password" class="form-label">Mot de passe</label>
+                            <input type="password" class="form-control" id="id_password" name="password" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Se connecter</button>
+                    </form>
+                </div>
+                <div class="card-footer text-center">
+                    <p class="mb-0">Pas encore de compte ? <a href="{% url 'register' %}">S'inscrire</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
