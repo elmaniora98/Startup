@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Déconnexion — Enchère+{% endblock %}
+
+{% block content %}
+<main class="flex-grow">
+    <div class="max-w-md mx-auto px-4 py-16">
+        <div class="bg-white rounded-xl shadow-lg p-8 text-center">
+            <!-- Icône de déconnexion -->
+            <div class="mx-auto w-16 h-16 bg-brand-100 rounded-full flex items-center justify-center mb-6">
+                <svg class="h-8 w-8 text-brand-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                </svg>
+            </div>
+            
+            <h1 class="text-2xl font-bold text-gray-900 mb-4">Vous avez été déconnecté</h1>
+            
+            <p class="text-gray-600 mb-8">
+                Merci d'avoir utilisé Enchère+. À bientôt !
+            </p>
+            
+            <div class="space-y-4">
+                <a href="{% url 'auctions:home' %}" class="block w-full px-6 py-3 bg-brand-700 text-white rounded-lg hover:bg-brand-800 transition-colors font-semibold">
+                    Retour à l'accueil
+                </a>
+                
+                <a href="{% url 'login' %}" class="block w-full px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-semibold">
+                    Se reconnecter
+                </a>
+            </div>
+        </div>
+    </div>
+</main>
+{% endblock %}
