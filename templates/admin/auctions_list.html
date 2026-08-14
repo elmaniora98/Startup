@@ -1,0 +1,211 @@
+{% extends 'admin/admin_base.html' %}
+
+{% block title %}Gestion des enchères - Admin{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2><i class="fas fa-gavel"></i> Toutes les enchères</h2>
+    
+    <!-- Filtres -->
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <form method="get" class="d-flex gap-2 flex-wrap">
+                <select name="status" class="form-select w-auto">
+                    <option value="">Tous les statuts</option>
+                    <option value="SCHEDULED" {% if request.GET.status == 'SCHEDULED' %}selected{% endif %}>Programmée</option>
+                    <option value="LIVE" {% if request.GET.status == 'LIVE' %}selected{% endif %}>En cours</option>
+                    <option value="PAUSED" {% if request.GET.status == 'PAUSED' %}selected{% endif %}>En pause</option>
+                    <option value="SOLD" {% if request.GET.status == 'SOLD' %}selected{% endif %}>Vendue</option>
+                    <option value="ENDED" {% if request.GET.status == 'ENDED' %}selected{% endif %}>Terminée</option>
+                    <option value="CANCELLED" {% if request.GET.status == 'CANCELLED' %}selected{% endif %}>Annulée</option>
+                    <option value="UNSOLD" {% if request.GET.status == 'UNSOLD' %}selected{% endif %}>Non vendue</option>
+                </select>
+                <input type="text" name="search" class="form-control w-auto" placeholder="Rechercher..." value="{{ request.GET.search }}">
+                <button type="submit" class="btn btn-primary">Filtrer</button>
+                <a href="{% url 'admin_auctions' %}" class="btn btn-secondary">Réinitialiser</a>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tableau des enchères -->
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>ID</th>
+                    <th>Titre</th>
+                    <th>Vendeur</th>
+                    <th>Catégorie</th>
+                    <th>Prix actuel</th>
+                    <th>Offres</th>
+                    <th>Début</th>
+                    <th>Fin</th>
+                    <th>Statut</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for auction in auctions %}
+                <tr>
+                    <td>#{{ auction.id }}</td>
+                    <td>
+                        <a href="{% url 'auction_detail' auction.pk %}">{{ auction.title|truncatewords:5 }}</a>
+                        {% if auction.reserve_price and auction.current_price < auction.reserve_price %}
+                            <span class="badge bg-warning text-dark">Réserve non atteinte</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ auction.seller.username }}</td>
+                    <td>{{ auction.category.name|default:"-" }}</td>
+                    <td>
+                        {% if auction.current_price %}
+                            {{ auction.current_price|cents_to_euros }}€
+                        {% else %}
+                            {{ auction.starting_price|cents_to_euros }}€
+                        {% endif %}
+                    </td>
+                    <td>{{ auction.bids.count }}</td>
+                    <td>{{ auction.start_at|date:"d/m/Y H:i" }}</td>
+                    <td>{{ auction.end_at|date:"d/m/Y H:i" }}</td>
+                    <td>
+                        {% if auction.status == 'LIVE' %}
+                            <span class="badge bg-success">En cours</span>
+                        {% elif auction.status == 'SCHEDULED' %}
+                            <span class="badge bg-info">Programmée</span>
+                        {% elif auction.status == 'PAUSED' %}
+                            <span class="badge bg-warning text-dark">Pause</span>
+                        {% elif auction.status == 'SOLD' %}
+                            <span class="badge bg-primary">Vendue</span>
+                        {% elif auction.status == 'ENDED' %}
+                            <span class="badge bg-secondary">Terminée</span>
+                        {% elif auction.status == 'CANCELLED' %}
+                            <span class="badge bg-danger">Annulée</span>
+                        {% elif auction.status == 'UNSOLD' %}
+                            <span class="badge bg-dark">Non vendue</span>
+                        {% else %}
+                            {{ auction.get_status_display }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <a href="{% url 'admin_auction_detail' auction.pk %}" class="btn btn-info" title="Voir">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            
+                            {% if auction.status == 'LIVE' %}
+                                <form method="post" action="{% url 'pause_auction' auction.pk %}" style="display:inline" onsubmit="return confirm('Mettre en pause cette enchère ?')">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-warning" title="Pause">
+                                        <i class="fas fa-pause"></i>
+                                    </button>
+                                </form>
+                            {% elif auction.status == 'PAUSED' %}
+                                <form method="post" action="{% url 'resume_auction' auction.pk %}" style="display:inline" onsubmit="return confirm('Reprendre cette enchère ?')">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-success" title="Reprendre">
+                                        <i class="fas fa-play"></i>
+                                    </button>
+                                </form>
+                            {% endif %}
+                            
+                            {% if auction.status == 'LIVE' or auction.status == 'PAUSED' %}
+                                <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#cancelModal{{ auction.pk }}" title="Annuler">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                                
+                                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#extendModal{{ auction.pk }}" title="Prolonger">
+                                    <i class="fas fa-clock"></i>
+                                </button>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Modal Annuler -->
+                        <div class="modal fade" id="cancelModal{{ auction.pk }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <form method="post" action="{% url 'cancel_auction' auction.pk %}">
+                                        {% csrf_token %}
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Annuler l'enchère #{{ auction.id }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <p>Êtes-vous sûr de vouloir annuler cette enchère ?</p>
+                                            <div class="mb-3">
+                                                <label class="form-label">Raison (optionnel)</label>
+                                                <textarea name="reason" class="form-control" rows="3" placeholder="Expliquez la raison de l'annulation..."></textarea>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                                            <button type="submit" class="btn btn-danger">Confirmer l'annulation</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Modal Prolonger -->
+                        <div class="modal fade" id="extendModal{{ auction.pk }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <form method="post" action="{% url 'extend_auction' auction.pk %}">
+                                        {% csrf_token %}
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Prolonger l'enchère #{{ auction.id }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="mb-3">
+                                                <label class="form-label">Durée à ajouter (minutes)</label>
+                                                <input type="number" name="minutes" class="form-control" value="30" min="1" max="1440">
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                                            <button type="submit" class="btn btn-primary">Prolonger</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="13" class="text-center">Aucune enchère trouvée</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <nav aria-label="Pagination">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page=1&status={{ request.GET.status }}&search={{ request.GET.search }}">Première</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}&status={{ request.GET.status }}&search={{ request.GET.search }}">Précédente</a>
+            </li>
+            {% endif %}
+            
+            <li class="page-item active">
+                <span class="page-link">Page {{ page_obj.number }} sur {{ page_obj.paginator.num_pages }}</span>
+            </li>
+            
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}&status={{ request.GET.status }}&search={{ request.GET.search }}">Suivante</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}&status={{ request.GET.status }}&search={{ request.GET.search }}">Dernière</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

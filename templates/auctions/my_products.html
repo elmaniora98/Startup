@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+
+{% block title %}Mes produits - Enchère+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>Mes produits</h1>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    {% if auctions %}
+        <div class="row">
+            {% for auction in auctions %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100">
+                    {% if auction.images.first %}
+                        <img src="{{ auction.images.first.image.url }}" class="card-img-top" alt="{{ auction.title }}" style="height: 200px; object-fit: cover;">
+                    {% else %}
+                        <div class="card-img-top bg-secondary d-flex align-items-center justify-content-center" style="height: 200px;">
+                            <span class="text-white">Pas d'image</span>
+                        </div>
+                    {% endif %}
+                    <div class="card-body">
+                        <h5 class="card-title">{{ auction.title }}</h5>
+                        <p class="card-text">
+                            <span class="badge 
+                                {% if auction.status == 'PENDING' %}bg-warning
+                                {% elif auction.status == 'LIVE' %}bg-success
+                                {% elif auction.status == 'SCHEDULED' %}bg-info
+                                {% elif auction.status == 'SOLD' %}bg-primary
+                                {% elif auction.status == 'ENDED' %}bg-secondary
+                                {% elif auction.status == 'CANCELLED' %}bg-danger
+                                {% elif auction.status == 'REJECTED' %}bg-dark
+                                {% endif %}">
+                                {{ auction.get_status_display }}
+                            </span>
+                        </p>
+                        <p class="card-text">
+                            Prix actuel : {{ auction.current_price|cents_to_euros }}€<br>
+                            {% if auction.reserve_price %}
+                            Prix de réserve : {{ auction.reserve_price|cents_to_euros }}€<br>
+                            {% endif %}
+                            Début : {{ auction.start_at|date:"d/m/Y H:i" }}<br>
+                            Fin : {{ auction.end_at|date:"d/m/Y H:i" }}
+                        </p>
+                        {% if auction.rejection_reason %}
+                        <div class="alert alert-danger">
+                            <strong>Raison du refus :</strong><br>
+                            {{ auction.rejection_reason }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        {% if auction.status == 'PENDING' %}
+                            <a href="{% url 'edit_auction' auction.pk %}" class="btn btn-primary btn-sm">Modifier</a>
+                            <a href="{% url 'delete_auction' auction.pk %}" class="btn btn-danger btn-sm">Supprimer</a>
+                        {% else %}
+                            <span class="text-muted">Modification non disponible pour ce statut</span>
+                        {% endif %}
+                        <a href="{% url 'auction_detail' auction.slug %}" class="btn btn-outline-secondary btn-sm float-end">Voir</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            Vous n'avez aucun produit. <a href="{% url 'propose_auction' %}">Proposer une enchère</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
