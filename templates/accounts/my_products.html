@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load auction_filters %}
 
 {% block title %}Mes produits | Enchère+{% endblock %}
 
@@ -61,7 +62,8 @@
                             <td class="px-6 py-4 whitespace-nowrap text-sm">
                                 <a href="{% url 'auctions:detail' auction.slug %}" class="text-brand-700 hover:text-brand-900">Voir</a>
                                 {% if auction.status == 'PENDING' %}
-                                    <span class="ml-3 text-green-700 hover:text-green-900 cursor-pointer">Modifier</span>
+                                    <a href="{% url 'auctions:edit_auction' pk=auction.pk %}" class="ml-3 text-green-700 hover:text-green-900">Modifier</a>
+                                    <a href="{% url 'auctions:delete_auction' pk=auction.pk %}" class="ml-3 text-red-700 hover:text-red-900">Supprimer</a>
                                 {% endif %}
                             </td>
                         </tr>
