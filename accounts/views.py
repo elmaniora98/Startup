@@ -50,7 +50,7 @@ def logout_view(request):
     """Déconnexion utilisateur"""
     logout(request)
     messages.info(request, 'Vous avez été déconnecté.')
-    return redirect('auctions:home')
+    return render(request, 'registration/logout.html')
 
 
 @login_required

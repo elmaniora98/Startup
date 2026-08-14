@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}{{ category.name }} — Enchère+{% endblock %}
+
+{% block content %}
+<main class="flex-grow">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- En-tête de catégorie -->
+        <div class="mb-8">
+            <a href="{% url 'auctions:home' %}" class="inline-flex items-center text-brand-700 hover:text-brand-800 mb-4 transition-colors">
+                <svg class="h-5 w-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                </svg>
+                Retour aux enchères
+            </a>
+            
+            <h1 class="text-3xl font-bold text-gray-900">{{ category.name }}</h1>
+            <p class="text-gray-600 mt-2">
+                {% if auctions.count == 0 %}
+                    Aucune enchère en direct dans cette catégorie
+                {% elif auctions.count == 1 %}
+                    1 enchère en direct
+                {% else %}
+                    {{ auctions.count }} enchères en direct
+                {% endif %}
+            </p>
+        </div>
+
+        <!-- Grille des enchères -->
+        {% if auctions %}
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {% for auction in auctions %}
+                    <a href="{% url 'auctions:detail' auction.slug %}" class="group bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300">
+                        <div class="aspect-square overflow-hidden bg-gray-200">
+                            {% if auction.images.first %}
+                                <img src="{{ auction.images.first.url }}" alt="{{ auction.title }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                            {% else %}
+                                <div class="w-full h-full flex items-center justify-center text-gray-400">
+                                    <svg class="h-16 w-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                    </svg>
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="p-4">
+                            <span class="text-xs font-semibold px-2 py-1 rounded bg-green-100 text-green-800">EN DIRECT</span>
+                            
+                            <h3 class="font-semibold text-gray-900 mt-2 mb-2 line-clamp-2 group-hover:text-brand-700 transition-colors">
+                                {{ auction.title }}
+                            </h3>
+                            
+                            <div class="space-y-1">
+                                <p class="text-sm text-gray-600">
+                                    <span class="font-semibold">Prix actuel:</span>
+                                    {% if auction.current_bid %}
+                                        {{ auction.current_bid.amount|floatformat:2 }} €
+                                    {% else %}
+                                        {{ auction.starting_price|floatformat:2 }} €
+                                    {% endif %}
+                                </p>
+                                
+                                <p class="text-xs text-gray-500">
+                                    Fin: {{ auction.end_at|date:"d M Y H:i" }}
+                                </p>
+                                
+                                <div class="pt-2 flex items-center text-xs text-gray-500" data-end-at="{{ auction.end_at.isoformat }}">
+                                    <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    <span class="countdown-timer">Chargement...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="text-center py-16">
+                <svg class="mx-auto h-24 w-24 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+                </svg>
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">Aucune enchère en direct</h3>
+                <p class="text-gray-600 mb-6">Revenez plus tard pour découvrir les nouvelles enchères</p>
+                <a href="{% url 'auctions:home' %}" class="inline-block px-6 py-2 bg-brand-700 text-white rounded-lg hover:bg-brand-800 transition-colors">
+                    Voir toutes les enchères
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Compte à rebours simple pour les timers
+function updateCountdowns() {
+    document.querySelectorAll('.countdown-timer').forEach(function(timer) {
+        const container = timer.closest('[data-end-at]');
+        if (!container) return;
+        
+        const endTime = new Date(container.dataset.endAt).getTime();
+        const now = new Date().getTime();
+        const distance = endTime - now;
+        
+        if (distance < 0) {
+            timer.textContent = 'Terminé';
+            timer.classList.add('text-red-600');
+            return;
+        }
+        
+        const hours = Math.floor(distance / (1000 * 60 * 60));
+        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+        
+        timer.textContent = 
+            (hours < 10 ? '0' + hours : hours) + ':' +
+            (minutes < 10 ? '0' + minutes : minutes) + ':' +
+            (seconds < 10 ? '0' + seconds : seconds);
+    });
+}
+
+updateCountdowns();
+setInterval(updateCountdowns, 1000);
+</script>
+{% endblock %}
