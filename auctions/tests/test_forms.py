@@ -32,7 +32,7 @@ class SubmitAuctionFormTest(TestCase):
     
     def test_valid_submission_creates_pending_auction(self):
         """Une soumission valide crée une enchère PENDING"""
-        start_at = timezone.now() + timedelta(hours=2)
+        start_at = timezone.now() + timedelta(hours=24)
         end_at = start_at + timedelta(days=7)
         
         form_data = {
@@ -49,6 +49,8 @@ class SubmitAuctionFormTest(TestCase):
         from django.core.files.uploadedfile import SimpleUploadedFile
         img = self.create_image()
         image_file = SimpleUploadedFile("test.jpg", img.read(), content_type="image/jpeg")
+        # Réinitialiser le pointeur de lecture pour le formulaire
+        image_file.seek(0)
         
         form = SubmitAuctionForm(data=form_data, seller=self.seller, files={'images': image_file})
         
@@ -56,7 +58,7 @@ class SubmitAuctionFormTest(TestCase):
     
     def test_amounts_converted_to_cents(self):
         """Les montants sont convertis en centimes (100.50 € → 10050 centimes)"""
-        start_at = timezone.now() + timedelta(hours=2)
+        start_at = timezone.now() + timedelta(hours=24)
         end_at = start_at + timedelta(days=7)
         
         form_data = {
@@ -72,6 +74,8 @@ class SubmitAuctionFormTest(TestCase):
         from django.core.files.uploadedfile import SimpleUploadedFile
         img = self.create_image()
         image_file = SimpleUploadedFile("test.jpg", img.read(), content_type="image/jpeg")
+        # Réinitialiser le pointeur de lecture pour le formulaire
+        image_file.seek(0)
         
         form = SubmitAuctionForm(data=form_data, seller=self.seller, files={'images': image_file})
         
