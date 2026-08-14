@@ -130,6 +130,9 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Custom user model
 AUTH_USER_MODEL = 'accounts.User'
 
+# Default primary key field type
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
 # Login/logout URLs
 LOGIN_URL = 'accounts:login'
 LOGIN_REDIRECT_URL = 'auctions:home'

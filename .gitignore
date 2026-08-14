@@ -23,32 +23,12 @@ wheels/
 
 # Database
 db.sqlite3
-*.db
 
-# Environment
-.env
-.env.local
-.env.*
-.env~*
-.envrc
-
-# Logs
+# Django
 *.log
-
-# Coverage
-.coverage
-coverage/
-htmlcov/
-.coverage.*
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*.tmp
-
-# OS
-.DS_Store
-Thumbs.db
+local_settings.py
+db.sqlite3-journal
+media/
+staticfiles/
+.env
 ```

@@ -11,7 +11,8 @@ from django.views.decorators.http import require_POST
 from datetime import timedelta
 import json
 
-from .models import Auction, Bid, Watchlist, Category, Notification, AuditLog, User
+from accounts.models import User
+from .models import Auction, Bid, Watchlist, Category, Notification, AuditLog
 from .forms import ProposeAuctionForm
 
 
