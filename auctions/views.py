@@ -440,12 +440,12 @@ def approve_auction(request, pk):
     # Vérifier que l'enchère est toujours PENDING
     if auction.status != Auction.Status.PENDING:
         messages.error(request, f"Cette enchère n'est plus en attente (statut actuel : {auction.get_status_display()}).")
-        return redirect('validation_queue')
+        return redirect('auctions:validation_queue')
     
     # Vérifier que l'admin n'est pas le vendeur
     if auction.seller == request.user:
         messages.error(request, "Vous ne pouvez pas valider votre propre soumission.")
-        return redirect('validation_queue')
+        return redirect('auctions:validation_queue')
     
     if request.method == 'POST':
         start_at_str = request.POST.get('start_at')
@@ -453,7 +453,7 @@ def approve_auction(request, pk):
         
         if not start_at_str or not end_at_str:
             messages.error(request, "Les dates de début et de fin sont obligatoires.")
-            return redirect('validation_queue')
+            return redirect('auctions:validation_queue')
         
         from django.utils import timezone
         from datetime import timedelta
@@ -463,7 +463,7 @@ def approve_auction(request, pk):
             end_at = timezone.make_aware(timezone.datetime.fromisoformat(end_at_str.replace('Z', '+00:00')))
         except (ValueError, TypeError):
             messages.error(request, "Format de date invalide.")
-            return redirect('validation_queue')
+            return redirect('auctions:validation_queue')
         
         # Validations
         now = timezone.now()
@@ -471,19 +471,19 @@ def approve_auction(request, pk):
         
         if end_at <= start_at:
             messages.error(request, "La date de fin doit être postérieure à la date de début.")
-            return redirect('validation_queue')
+            return redirect('auctions:validation_queue')
         
         if start_at < now:
             messages.error(request, "La date de début doit être dans le futur.")
-            return redirect('validation_queue')
+            return redirect('auctions:validation_queue')
         
         if duration < timedelta(hours=1):
             messages.error(request, "La durée minimale est de 1 heure.")
-            return redirect('validation_queue')
+            return redirect('auctions:validation_queue')
         
         if duration > timedelta(days=30):
             messages.error(request, "La durée maximale est de 30 jours.")
-            return redirect('validation_queue')
+            return redirect('auctions:validation_queue')
         
         # Mise à jour de l'enchère
         auction.start_at = start_at
@@ -518,9 +518,9 @@ def approve_auction(request, pk):
         )
         
         messages.success(request, f"L'enchère '{auction.title}' a été approuvée et programmée.")
-        return redirect('validation_queue')
+        return redirect('auctions:validation_queue')
     
-    return redirect('validation_queue')
+    return redirect('auctions:validation_queue')
 
 
 @admin_required
@@ -531,19 +531,19 @@ def reject_auction(request, pk):
     # Vérifier que l'enchère est toujours PENDING
     if auction.status != Auction.Status.PENDING:
         messages.error(request, f"Cette enchère n'est plus en attente (statut actuel : {auction.get_status_display()}).")
-        return redirect('validation_queue')
+        return redirect('auctions:validation_queue')
     
     # Vérifier que l'admin n'est pas le vendeur
     if auction.seller == request.user:
         messages.error(request, "Vous ne pouvez pas rejeter votre propre soumission.")
-        return redirect('validation_queue')
+        return redirect('auctions:validation_queue')
     
     if request.method == 'POST':
         rejection_reason = request.POST.get('rejection_reason', '').strip()
         
         if len(rejection_reason) < 10:
             messages.error(request, "Le motif de rejet doit contenir au moins 10 caractères.")
-            return redirect('validation_queue')
+            return redirect('auctions:validation_queue')
         
         # Mise à jour de l'enchère
         auction.status = Auction.Status.REJECTED
@@ -575,9 +575,9 @@ def reject_auction(request, pk):
         )
         
         messages.success(request, f"L'enchère '{auction.title}' a été rejetée.")
-        return redirect('validation_queue')
+        return redirect('auctions:validation_queue')
     
-    return redirect('validation_queue')
+    return redirect('auctions:validation_queue')
 
 
 @admin_required
