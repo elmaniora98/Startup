@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% load auction_filters %}
+
+{% block title %}Mes produits | Enchère+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold text-gray-900">Mes produits</h1>
+        <a href="#" class="bg-brand-700 hover:bg-brand-800 text-white px-4 py-2 rounded-lg transition-colors">
+            Proposer un produit
+        </a>
+    </div>
+    
+    {% if auctions %}
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix départ</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix actuel</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fin</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for auction in auctions %}
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    {% if auction.images.first %}
+                                        <img src="{{ auction.images.first.image.url }}" alt="" class="h-10 w-10 rounded object-cover mr-3">
+                                    {% endif %}
+                                    <span class="text-sm font-medium text-gray-900">{{ auction.title }}</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if auction.status == 'PENDING' %}
+                                    <span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs">En attente de validation</span>
+                                {% elif auction.status == 'REJECTED' %}
+                                    <span class="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs">Rejeté</span>
+                                {% elif auction.status == 'SCHEDULED' %}
+                                    <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">Programmée</span>
+                                {% elif auction.status == 'LIVE' %}
+                                    <span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">En cours</span>
+                                {% elif auction.status == 'ENDED' %}
+                                    <span class="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs">Terminée</span>
+                                {% elif auction.status == 'SOLD' %}
+                                    <span class="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs">Vendue</span>
+                                {% else %}
+                                    <span class="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs">{{ auction.get_status_display }}</span>
+                                {% endif %}
+                                {% if auction.status == 'REJECTED' and auction.rejection_reason %}
+                                    <p class="text-xs text-red-600 mt-1">Motif: {{ auction.rejection_reason|truncatechars:50 }}</p>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ auction.starting_price|cents_to_euros }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ auction.current_price|default:auction.starting_price|cents_to_euros }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ auction.end_at|date:"d/m/Y H:i" }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <a href="{% url 'auctions:detail' auction.slug %}" class="text-brand-700 hover:text-brand-900">Voir</a>
+                                {% if auction.status == 'PENDING' %}
+                                    <a href="{% url 'auctions:edit_auction' pk=auction.pk %}" class="ml-3 text-green-700 hover:text-green-900">Modifier</a>
+                                    <a href="{% url 'auctions:delete_auction' pk=auction.pk %}" class="ml-3 text-red-700 hover:text-red-900">Supprimer</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="bg-white rounded-lg shadow p-12 text-center">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+            </svg>
+            <h3 class="mt-2 text-sm font-medium text-gray-900">Aucun produit</h3>
+            <p class="mt-1 text-sm text-gray-500">Commencez par proposer un produit à la vente.</p>
+            <div class="mt-6">
+                <a href="#" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-brand-700 hover:bg-brand-800">
+                    Proposer un produit
+                </a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
