@@ -114,6 +114,8 @@ class AdminAdvancedTest(TestCase):
             seller=self.user, category=self.category,
             title='Ended', slug='ended-adv',
             description='Test', starting_price=10000, min_increment=500,
+            start_at=timezone.now() - timedelta(days=2),
+            end_at=timezone.now() - timedelta(days=1),
             status=Auction.Status.ENDED
         )
         
@@ -151,6 +153,8 @@ class AdminAdvancedTest(TestCase):
             seller=self.user, category=self.category,
             title='User Auction', slug='user-auction-aa',
             description='Test', starting_price=10000, min_increment=500,
+            start_at=timezone.now() - timedelta(days=1),
+            end_at=timezone.now() + timedelta(days=1),
             status=Auction.Status.SOLD
         )
         
@@ -275,6 +279,8 @@ class AdminAdvancedTest(TestCase):
             seller=self.user, category=self.category,
             title='Pending', slug='pending-stat-aa',
             description='Test', starting_price=10000, min_increment=500,
+            start_at=timezone.now() + timedelta(days=1),
+            end_at=timezone.now() + timedelta(days=2),
             status=Auction.Status.PENDING
         )
         
@@ -289,6 +295,8 @@ class AdminAdvancedTest(TestCase):
             seller=self.user, category=self.category,
             title='Sold', slug='sold-rev-aa',
             description='Test', starting_price=10000, min_increment=500,
+            start_at=timezone.now() - timedelta(days=2),
+            end_at=timezone.now() - timedelta(days=1),
             status=Auction.Status.SOLD, current_price=20000
         )
         

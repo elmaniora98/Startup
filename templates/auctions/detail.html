@@ -104,6 +104,9 @@
                         </p>
                         <div id="countdown-{{ auction.id }}" 
                              data-end-at="{{ auction.end_at.isoformat }}"
+                             hx-get="{% url 'auctions:api_price_block' pk=auction.pk %}"
+                             hx-trigger="{% if auction.status == 'LIVE' %}every 3s{% else %}never{% endif %}"
+                             hx-swap="outerHTML"
                              class="text-2xl font-mono font-bold text-gray-900">
                             --j --h --m --s
                         </div>
@@ -165,7 +168,7 @@
                             data-auction-id="{{ auction.id }}"
                             class="w-full py-3 px-4 border-2 {% if is_watching %}border-purple-600 bg-purple-50 text-purple-600{% else %}border-gray-300 bg-white text-gray-700 hover:border-purple-400{% endif %} rounded-lg font-semibold transition-colors">
                         {% if is_watching %}
-                            ✓ Suivi
+                            Ne plus suivre
                         {% else %}
                             ♡ Suivre cette enchère
                         {% endif %}

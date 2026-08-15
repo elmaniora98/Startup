@@ -1,0 +1,21 @@
+{% load auction_filters %}
+
+<div id="bids-history-{{ auction.pk }}" class="bg-white rounded-lg shadow p-4">
+    <h3 class="text-lg font-semibold mb-3 text-gray-800">Historique des enchères</h3>
+    
+    {% if bids %}
+    <div class="space-y-2 max-h-64 overflow-y-auto">
+        {% for bid in bids %}
+        <div class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
+            <div class="flex items-center space-x-2">
+                <span class="text-gray-600 text-sm">{{ bid.user.username|mask_username }}</span>
+                <span class="text-xs text-gray-400">{{ bid.created_at|timesince }} ago</span>
+            </div>
+            <span class="font-semibold text-gray-900">{{ bid.amount|cents_to_euros }} €</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-gray-500 text-center py-4">Aucune enchère pour le moment.</p>
+    {% endif %}
+</div>

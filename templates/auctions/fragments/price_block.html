@@ -1,0 +1,37 @@
+{% load auction_filters %}
+
+<div id="price-block-{{ auction.pk }}" class="bg-white rounded-lg shadow p-4 mb-4">
+    <div class="flex justify-between items-center mb-2">
+        <span class="text-gray-600 font-medium">Prix actuel</span>
+        {% if auction.status == 'SOLD' %}
+            <span class="text-green-600 font-bold text-xl">{{ auction.current_price|cents_to_euros }} €</span>
+        {% elif auction.status == 'SCHEDULED' %}
+            <span class="text-blue-600 font-bold text-xl">Programmée</span>
+        {% elif auction.status == 'ENDED' %}
+            <span class="text-gray-600 font-bold text-xl">Terminée</span>
+        {% else %}
+            <span class="text-gray-900 font-bold text-xl">{{ auction.current_price|cents_to_euros }} €</span>
+        {% endif %}
+    </div>
+    
+    {% if auction.status == 'LIVE' %}
+    <div class="text-sm text-gray-500 mb-2">
+        Enchère min: {{ auction.min_increment|cents_to_euros }} €
+    </div>
+    <div class="text-xs text-gray-400">
+        {{ auction.bids.count }} enchère(s)
+    </div>
+    {% endif %}
+    
+    {% if auction.status == 'SOLD' and auction.winner %}
+    <div class="mt-3 pt-3 border-t border-gray-200">
+        <span class="text-green-600 font-semibold">✓ Vendue à {{ auction.winner.username }}</span>
+    </div>
+    {% endif %}
+    
+    {% if auction.status == 'SCHEDULED' %}
+    <div class="mt-3 pt-3 border-t border-gray-200">
+        <span class="text-blue-600 font-semibold">Début le {{ auction.start_at|date:"d/m/Y à H:i" }}</span>
+    </div>
+    {% endif %}
+</div>

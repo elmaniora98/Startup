@@ -121,6 +121,13 @@ def detail(request, slug):
     is_watching = False
     if request.user.is_authenticated:
         is_watching = Watchlist.objects.filter(user=request.user, auction=auction).exists()
+        
+        # Marquer les notifications liées à cette enchère comme lues
+        Notification.objects.filter(
+            user=request.user,
+            payload__auction_id=auction.id,
+            read_at__isnull=True
+        ).update(read_at=timezone.now())
 
     # Calcul du minimum pour la prochaine enchère
     min_next_bid = auction.starting_price

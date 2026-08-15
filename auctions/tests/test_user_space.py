@@ -112,6 +112,8 @@ class UserSpaceTest(TestCase):
             seller=self.other, category=self.category,
             title='Ended', slug='ended-us',
             description='Test', starting_price=10000, min_increment=500,
+            start_at=timezone.now() - timedelta(days=2),
+            end_at=timezone.now() - timedelta(days=1),
             status=Auction.Status.ENDED
         )
         

@@ -21,7 +21,7 @@ class PlaceBidTest(TestCase):
             description='Test', starting_price=10000, min_increment=500,
             start_at=timezone.now() - timedelta(hours=1),
             end_at=timezone.now() + timedelta(hours=1),
-            status=Auction.Status.LIVE, current_price=10000
+            status=Auction.Status.LIVE
         )
         
         cls.scheduled_auction = Auction.objects.create(
