@@ -140,7 +140,14 @@ class ProposeAuctionForm(forms.ModelForm):
     
     def clean_images(self):
         """Valide les images uploadées : nombre, taille, extensions."""
-        images = self.files.getlist('images')
+        # Gérer à la fois MultiValueDict (requete HTTP) et dict (tests)
+        if hasattr(self.files, 'getlist'):
+            images = self.files.getlist('images')
+        else:
+            # Pour les tests où files est un dict
+            images = self.files.get('images', [])
+            if not isinstance(images, list):
+                images = [images] if images else []
         
         if not images or len(images) == 0:
             raise ValidationError("Vous devez uploader au moins une image.")

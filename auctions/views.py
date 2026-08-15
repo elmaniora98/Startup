@@ -1,5 +1,6 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse, HttpResponse
+from django.http.response import HttpResponseForbidden
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from django.db import transaction, models
@@ -302,7 +303,11 @@ def my_products(request):
 @login_required
 def edit_auction(request, pk):
     """Modification d'une enchère (uniquement si PENDING)"""
-    auction = get_object_or_404(Auction, pk=pk, seller=request.user)
+    auction = get_object_or_404(Auction, pk=pk)
+    
+    # Vérifier que l'utilisateur est le propriétaire
+    if auction.seller != request.user:
+        return HttpResponseForbidden("Vous n'êtes pas autorisé à modifier cette enchère.")
     
     if auction.status != Auction.Status.PENDING:
         messages.error(request, 'Vous ne pouvez modifier que les enchères en attente de validation.')
@@ -355,7 +360,11 @@ def edit_auction(request, pk):
 @login_required
 def delete_auction(request, pk):
     """Suppression d'une enchère (uniquement si PENDING)"""
-    auction = get_object_or_404(Auction, pk=pk, seller=request.user)
+    auction = get_object_or_404(Auction, pk=pk)
+    
+    # Vérifier que l'utilisateur est le propriétaire
+    if auction.seller != request.user:
+        return HttpResponseForbidden("Vous n'êtes pas autorisé à supprimer cette enchère.")
     
     if auction.status != Auction.Status.PENDING:
         messages.error(request, 'Vous ne pouvez supprimer que les enchères en attente de validation.')
